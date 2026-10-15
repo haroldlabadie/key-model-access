@@ -30,7 +30,8 @@
     check: '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>',
     chevronDown: '<svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>',
     chevronRight: '<svg viewBox="0 0 24 24"><path d="m10 7 5 5-5 5"/></svg>',
-    spinner: '<svg class="spinner" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-9 9"/><path d="M3 12a9 9 0 0 1 9-9" opacity=".35"/></svg>'
+    spinner: '<svg class="spinner" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-9 9"/><path d="M3 12a9 9 0 0 1 9-9" opacity=".35"/></svg>',
+    logout: '<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>'
   };
 
   const plural = (count, one, many) => (Number(count) === 1 ? one : many);
@@ -42,17 +43,24 @@
       "brand.title": "模型权限",
       "session.connectingTitle": "正在接入管理会话",
       "session.readingMessage": "正在读取 CPAMC 当前连接信息，无需再次输入 Management Key。",
+      "session.manualTitle": "管理会话接入",
+      "session.manualMessage": "请输入 CPA 的 Management Key 以管理各 API Key 的模型访问权限。",
+      "session.keyLabel": "Management Key",
+      "session.keyPlaceholder": "输入 CPA 管理密钥",
+      "session.rememberKey": "在此浏览器记住 Key",
+      "session.connect": "连接并进入设置",
+      "session.switchKey": "退出当前会话",
       "session.retry": "重新读取会话",
-      "session.footnote": "插件只复用 CPAMC 已保存的同源会话，不会复制或持久化 Management Key。",
+      "session.footnote": "支持自动复用 CPAMC 会话，或直接输入 Management Key 接入管理面板。",
       "session.noSessionTitle": "未找到可复用的 CPAMC 会话",
-      "session.noSessionMessage": "自动接入要求 CPAMC 与 CPA 同源，并在登录时启用“记住密码”。请确认后返回此页面重试；插件不会要求你再次输入 Management Key。",
-      "session.loadingMessage": "正在验证 CPAMC 已保存的连接信息并加载模型策略…",
-      "session.expired": "CPAMC 保存的 Management Key 已失效。请返回 CPAMC 重新登录并启用“记住密码”。",
+      "session.noSessionMessage": "未检测到 CPAMC 会话。你可以在下方直接输入 Management Key 接入管理面板。",
+      "session.loadingMessage": "正在验证连接信息并加载模型策略…",
+      "session.expired": "Management Key 已失效或未授权。请重新输入有效的 Management Key。",
       "session.connectFailed": "无法连接 CPA：{message}",
       "session.unavailableTitle": "管理会话不可用",
-      "session.endedTitle": "CPAMC 会话已结束",
-      "session.endedDraft": "未保存的策略草稿已保留在当前页面内存中。请重新登录；会话恢复后草稿会自动还原。",
-      "session.endedNoDraft": "请先在 CPAMC 重新登录并启用“记住密码”，页面会自动重新接入。",
+      "session.endedTitle": "管理会话已结束",
+      "session.endedDraft": "未保存的策略草稿已保留在当前页面内存中。请重新输入 Management Key 恢复会话。",
+      "session.endedNoDraft": "管理会话已断开，请重新输入 Management Key 接入。",
       "nav.label": "策略导航",
       "nav.search": "搜索 Key",
       "nav.overview": "概览",
@@ -170,17 +178,24 @@
       "brand.title": "Model Access",
       "session.connectingTitle": "Connecting to management session",
       "session.readingMessage": "Reading the current CPAMC connection. There is no need to enter the Management Key again.",
+      "session.manualTitle": "Management Session",
+      "session.manualMessage": "Enter your CPA Management Key to manage model access policies for API keys.",
+      "session.keyLabel": "Management Key",
+      "session.keyPlaceholder": "Enter CPA Management Key",
+      "session.rememberKey": "Remember key in this browser",
+      "session.connect": "Connect",
+      "session.switchKey": "Disconnect session",
       "session.retry": "Retry session",
-      "session.footnote": "The plugin only reuses the same-origin session saved by CPAMC and never copies or persists the Management Key.",
+      "session.footnote": "Supports automatic CPAMC session reuse or direct Management Key input.",
       "session.noSessionTitle": "No reusable CPAMC session found",
-      "session.noSessionMessage": "Automatic sign-in requires CPAMC and CPA to share the same origin, with “Remember password” enabled at login. Check this and retry here; the plugin will never ask you to re-enter the Management Key.",
-      "session.loadingMessage": "Verifying the saved CPAMC connection and loading model policies…",
-      "session.expired": "The Management Key saved by CPAMC is no longer valid. Sign in to CPAMC again with “Remember password” enabled.",
+      "session.noSessionMessage": "No CPAMC session detected. You can enter your Management Key below to access settings.",
+      "session.loadingMessage": "Verifying connection and loading model policies…",
+      "session.expired": "The Management Key is invalid or expired. Please re-enter a valid Management Key.",
       "session.connectFailed": "Unable to connect to CPA: {message}",
       "session.unavailableTitle": "Management session unavailable",
-      "session.endedTitle": "CPAMC session ended",
-      "session.endedDraft": "Your unsaved policy draft is kept in this page's memory. Sign in again and it will be restored automatically.",
-      "session.endedNoDraft": "Sign in to CPAMC again with “Remember password” enabled; this page will reconnect automatically.",
+      "session.endedTitle": "Management session ended",
+      "session.endedDraft": "Your unsaved policy draft is kept in this page's memory. Re-enter your Management Key to restore the session.",
+      "session.endedNoDraft": "Management session has ended. Please enter your Management Key to reconnect.",
       "nav.label": "Policy navigation",
       "nav.search": "Search keys",
       "nav.overview": "Overview",
@@ -412,6 +427,8 @@
     }
   }
 
+  const STANDALONE_AUTH_KEY = "cpa_key_model_access_mgmt_key";
+
   function readCPAMCManagementKey() {
     try {
       if (localStorage.getItem("isLoggedIn") !== "true") return "";
@@ -425,6 +442,21 @@
     }
   }
 
+  function readSavedManagementKey() {
+    try {
+      const direct = localStorage.getItem(STANDALONE_AUTH_KEY) || sessionStorage.getItem(STANDALONE_AUTH_KEY);
+      if (typeof direct === "string" && direct.trim()) return direct.trim();
+    } catch (_) {}
+    return readCPAMCManagementKey();
+  }
+
+  function clearSavedManagementKey() {
+    try {
+      localStorage.removeItem(STANDALONE_AUTH_KEY);
+      sessionStorage.removeItem(STANDALONE_AUTH_KEY);
+    } catch (_) {}
+  }
+
   function normalizeModels(value) {
     if (!Array.isArray(value)) return [];
     return [...new Set(value.map((model) => String(model).trim()).filter(Boolean))];
@@ -432,7 +464,7 @@
 
   function modelPatternMatches(pattern, model) {
     const source = String(pattern).replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
-    try { return new RegExp(`^${source}$`).test(model); } catch (_) { return false; }
+    try { return new RegExp(`^${source}$`, "i").test(model); } catch (_) { return false; }
   }
 
   function normalizePolicyDocument(raw) {
@@ -759,16 +791,20 @@
     $("#authTitle").textContent = t(titleKey);
     $("#authMessage").textContent = t(messageKey, params);
     $("#sessionIcon").classList.toggle("error", kind === "error");
-    $("#sessionIcon").innerHTML = kind === "loading" ? icons.spinner : kind === "error" ? icons.warning : icons.check;
+    $("#sessionIcon").innerHTML = kind === "loading" ? icons.spinner : kind === "error" ? icons.warning : (icons.key || icons.check);
     $("#retrySessionButton").hidden = kind !== "error";
+    const manualSection = $("#manualAuthSection");
+    if (manualSection) {
+      manualSection.hidden = kind === "loading";
+    }
   }
 
-  async function connectFromCPAMC() {
+  async function connectWithKey(key, shouldRemember = false) {
     if (state.sessionBusy) return;
-    const token = readCPAMCManagementKey();
+    const token = (key || "").trim();
     if (!token) {
       state.token = "";
-      setSessionState("error", "session.noSessionTitle", "session.noSessionMessage");
+      setSessionState("manual", "session.manualTitle", "session.manualMessage");
       return;
     }
     state.token = token;
@@ -776,6 +812,11 @@
     setSessionState("loading", "session.connectingTitle", "session.loadingMessage");
     try {
       const remote = await fetchRemoteData();
+      if (shouldRemember) {
+        try { localStorage.setItem(STANDALONE_AUTH_KEY, token); } catch (_) {}
+      } else if (key) {
+        try { sessionStorage.setItem(STANDALONE_AUTH_KEY, token); } catch (_) {}
+      }
       const pendingDraft = state.pendingDraft;
       const pendingScope = state.pendingScope;
       installRemoteData(remote, pendingScope);
@@ -791,10 +832,26 @@
       renderAll();
     } catch (error) {
       state.token = "";
-      if (error.status === 401) setSessionState("error", "session.unavailableTitle", "session.expired");
-      else setSessionState("error", "session.unavailableTitle", "session.connectFailed", { message: error.message });
+      clearSavedManagementKey();
+      if (error.status === 401) {
+        setSessionState("manual", "session.unavailableTitle", "session.expired");
+      } else {
+        setSessionState("manual", "session.unavailableTitle", "session.connectFailed", { message: error.message });
+      }
+      const keyInput = $("#manualKeyInput");
+      if (keyInput) keyInput.focus();
     } finally {
       state.sessionBusy = false;
+    }
+  }
+
+  async function connectFromCPAMC() {
+    const saved = readSavedManagementKey();
+    if (saved) {
+      await connectWithKey(saved, false);
+    } else {
+      state.token = "";
+      setSessionState("manual", "session.manualTitle", "session.manualMessage");
     }
   }
 
@@ -814,7 +871,7 @@
     state.sessionEnded = false;
     app.hidden = true;
     authGate.hidden = false;
-    setSessionState("error", "session.endedTitle", hadDraft ? "session.endedDraft" : "session.endedNoDraft");
+    setSessionState("manual", "session.endedTitle", hadDraft ? "session.endedDraft" : "session.endedNoDraft");
   }
 
   function setBusy(busy, action = "") {
@@ -1358,6 +1415,8 @@
     $("#searchIcon").innerHTML = icons.search;
     refreshDataButton.innerHTML = icons.refresh;
     reloadButton.innerHTML = icons.file;
+    const logoutBtn = $("#logoutButton");
+    if (logoutBtn) logoutBtn.innerHTML = icons.logout;
     const shortcut = saveBar.querySelector(".shortcut");
     if (shortcut && !/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) shortcut.textContent = "Ctrl S";
     syncTheme();
@@ -1370,15 +1429,53 @@
   }
 
   $("#retrySessionButton").addEventListener("click", connectFromCPAMC);
+
+  function handleManualConnect() {
+    const keyInput = $("#manualKeyInput");
+    const rememberCheckbox = $("#rememberKeyCheckbox");
+    const key = keyInput ? keyInput.value.trim() : "";
+    if (!key) {
+      keyInput?.focus();
+      return;
+    }
+    connectWithKey(key, Boolean(rememberCheckbox?.checked));
+  }
+
+  function handleLogout() {
+    if (state.dirty && !window.confirm(t("refresh.confirm"))) return;
+    clearSavedManagementKey();
+    state.token = "";
+    state.status = null;
+    state.keys = [];
+    state.models = [];
+    state.stalePolicies = [];
+    state.dirty = false;
+    state.sessionEnded = false;
+    app.hidden = true;
+    authGate.hidden = false;
+    const keyInput = $("#manualKeyInput");
+    if (keyInput) keyInput.value = "";
+    setSessionState("manual", "session.manualTitle", "session.manualMessage");
+  }
+
+  $("#manualConnectButton")?.addEventListener("click", handleManualConnect);
+  $("#manualKeyInput")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleManualConnect();
+    }
+  });
+  $("#logoutButton")?.addEventListener("click", handleLogout);
+
   window.addEventListener("storage", (event) => {
     if (event.key === CPAMC_THEME_KEY) syncTheme();
     if (event.key === CPAMC_LANGUAGE_KEY || event.key === "i18nextLng") syncLocale();
-    if (event.key !== CPAMC_AUTH_KEY && event.key !== "isLoggedIn") return;
+    if (event.key !== CPAMC_AUTH_KEY && event.key !== "isLoggedIn" && event.key !== STANDALONE_AUTH_KEY) return;
     if (app.hidden) {
       connectFromCPAMC();
       return;
     }
-    if (!readCPAMCManagementKey()) {
+    if (!readSavedManagementKey()) {
       state.sessionEnded = true;
       finalizeEndedSession();
     }

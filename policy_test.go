@@ -568,3 +568,29 @@ func unwrapEnvelope(t *testing.T, raw []byte, target any) {
 		t.Fatalf("unmarshal result: %v", err)
 	}
 }
+
+func TestCaseInsensitiveModelMatching(t *testing.T) {
+	policy := runtimePolicy{
+		AllowModels: []string{"gpt-4o*", "Claude-3-5-*"},
+		DenyModels:  []string{"*-Preview"},
+	}
+	cases := []struct {
+		model string
+		want  bool
+	}{
+		{"GPT-4O", true},
+		{"gpt-4o-mini", true},
+		{"GPT-4O-MINI", true},
+		{"claude-3-5-sonnet", true},
+		{"CLAUDE-3-5-SONNET", true},
+		{"gpt-4o-preview", false},
+		{"GPT-4O-PREVIEW", false},
+		{"claude-3-5-sonnet-preview", false},
+		{"gemini-2.0-flash", false},
+	}
+	for _, tc := range cases {
+		if got := policyAllows(policy, tc.model); got != tc.want {
+			t.Errorf("policyAllows(%q) = %v, want %v", tc.model, got, tc.want)
+		}
+	}
+}

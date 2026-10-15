@@ -353,9 +353,9 @@ func policyAllows(policy runtimePolicy, model string) bool {
 	return false
 }
 
-// wildcardMatch supports shell-style '*' and '?' while allowing '*' to cross '/'.
+// wildcardMatch supports shell-style '*' and '?' case-insensitively while allowing '*' to cross '/'.
 func wildcardMatch(pattern, value string) bool {
-	patternRunes, valueRunes := []rune(pattern), []rune(value)
+	patternRunes, valueRunes := []rune(strings.ToLower(pattern)), []rune(strings.ToLower(value))
 	p, v, star, checkpoint := 0, 0, -1, 0
 	for v < len(valueRunes) {
 		if p < len(patternRunes) && (patternRunes[p] == '?' || patternRunes[p] == valueRunes[v]) {

@@ -18,7 +18,7 @@ function load(respond = () => { throw new Error('Unexpected fetch'); }, globals 
     fetch: async (path, options) => ({ ok: true, json: async () => respond(path, options) })
   });
   vm.runInContext(source.slice(0, source.indexOf(marker)) +
-    'globalThis.helpers = { pluginsDirFromList, initializeDefaultPersistence, fetchCurrentKeys, api, normalizePolicyDocument, MESSAGES, t, getLocale: () => locale }; })();', context);
+    'globalThis.helpers = { pluginsDirFromList, initializeDefaultPersistence, fetchCurrentKeys, api, normalizePolicyDocument, MESSAGES, t, getLocale: () => locale, readSavedManagementKey, clearSavedManagementKey, STANDALONE_AUTH_KEY }; })();', context);
   return context.helpers;
 }
 
@@ -130,4 +130,12 @@ test('i18n: follows CPAMC language, then browser, defaulting to English', () => 
   assert.equal(zh.getLocale(), 'zh-CN');
   assert.equal(zh.t('rules.count', { count: 3 }), '3 条规则');
   assert.equal(load(undefined, { localStorage: storage(null), navigator: nav(['fr-FR']) }).getLocale(), 'en');
+});
+
+test('standalone auth: readSavedManagementKey prioritizes local storage over CPAMC', () => {
+  const store = { [ 'cpa_key_model_access_mgmt_key' ]: 'custom-mgmt-key' };
+  const helpers = load(undefined, { localStorage: { getItem: (k) => store[k] || null, removeItem: (k) => delete store[k] } });
+  assert.equal(helpers.readSavedManagementKey(), 'custom-mgmt-key');
+  helpers.clearSavedManagementKey();
+  assert.equal(helpers.readSavedManagementKey(), '');
 });

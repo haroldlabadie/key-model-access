@@ -14,8 +14,23 @@
       <div id="sessionIcon" class="session-icon" aria-hidden="true"></div>
       <h1 id="authTitle" data-i18n="session.connectingTitle">正在接入管理会话</h1>
       <p id="authMessage" class="auth-copy" role="status" aria-live="polite" data-i18n="session.readingMessage">正在读取 CPAMC 当前连接信息，无需再次输入 Management Key。</p>
+      
+      <div id="manualAuthSection" class="auth-form" hidden>
+        <div class="form-field">
+          <label for="manualKeyInput" data-i18n="session.keyLabel">Management Key</label>
+          <input id="manualKeyInput" type="password" autocomplete="current-password" placeholder="请输入 CPA Management Key" data-i18n-placeholder="session.keyPlaceholder">
+        </div>
+        <div class="form-options">
+          <label class="checkbox-label">
+            <input id="rememberKeyCheckbox" type="checkbox" checked>
+            <span data-i18n="session.rememberKey">在此浏览器记住 Key</span>
+          </label>
+        </div>
+        <button id="manualConnectButton" class="button primary wide" type="button" data-i18n="session.connect">连接并进入设置</button>
+      </div>
+
       <button id="retrySessionButton" class="button secondary wide" type="button" data-i18n="session.retry" hidden>重新读取会话</button>
-      <p class="auth-footnote" data-i18n="session.footnote">插件只复用 CPAMC 已保存的同源会话，不会复制或持久化 Management Key。</p>
+      <p class="auth-footnote" data-i18n="session.footnote">支持自动复用 CPAMC 会话，或直接输入 Management Key 接入管理面板。</p>
     </section>
   </main>
 
@@ -39,6 +54,7 @@
             <div class="foot-actions">
               <button id="reloadButton" class="icon-button" type="button" aria-label="从策略文件重载" title="从策略文件重载" data-i18n-aria-label="action.reload" data-i18n-title="action.reload"></button>
               <button id="refreshDataButton" class="icon-button" type="button" aria-label="刷新 CPA Key 与策略" title="刷新 CPA Key 与策略" data-i18n-aria-label="action.refresh" data-i18n-title="action.refresh"></button>
+              <button id="logoutButton" class="icon-button" type="button" aria-label="退出会话" title="退出会话" data-i18n-aria-label="session.switchKey" data-i18n-title="session.switchKey"></button>
             </div>
           </div>
           <p id="persistenceNotice" class="persistence-notice"></p>
