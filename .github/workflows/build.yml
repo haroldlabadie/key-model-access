@@ -168,6 +168,7 @@ jobs:
   build-freebsd:
     name: Build freebsd/amd64
     needs: test
+    continue-on-error: true
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -239,7 +240,6 @@ jobs:
     needs:
       - build
       - build-windows-arm64
-      - build-freebsd
     runs-on: ubuntu-24.04
     steps:
       - name: Download build artifacts

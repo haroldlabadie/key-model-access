@@ -111,7 +111,7 @@ func handleManagement(raw []byte) ([]byte, error) {
 	method := strings.ToUpper(strings.TrimSpace(req.Method))
 	path := strings.TrimRight(strings.TrimSpace(req.Path), "/")
 	switch {
-	case method == http.MethodGet && path == settingsResourcePath:
+	case (method == http.MethodGet || method == http.MethodHead) && path == settingsResourcePath:
 		return settingsPage()
 	case method == http.MethodGet && path == statusPath:
 		return managementStatus()
