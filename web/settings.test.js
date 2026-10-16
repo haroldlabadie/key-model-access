@@ -18,7 +18,7 @@ function load(respond = () => { throw new Error('Unexpected fetch'); }, globals 
     fetch: async (path, options) => ({ ok: true, json: async () => respond(path, options) })
   });
   vm.runInContext(source.slice(0, source.indexOf(marker)) +
-    'globalThis.helpers = { pluginsDirFromList, initializeDefaultPersistence, fetchCurrentKeys, api, normalizePolicyDocument, MESSAGES, t, getLocale: () => locale, readSavedManagementKey, clearSavedManagementKey, STANDALONE_AUTH_KEY }; })();', context);
+    'globalThis.helpers = { pluginsDirFromList, initializeDefaultPersistence, fetchCurrentKeys, api, normalizePolicyDocument, MESSAGES, t, getLocale: () => locale, readSavedManagementKey, clearSavedManagementKey, STANDALONE_AUTH_KEY, isInternalWarmupModel }; })();', context);
   return context.helpers;
 }
 
@@ -182,4 +182,15 @@ test("fetchCurrentKeys maps aliases from CPAMP camelCase apiKeyHash endpoint", a
   const keys = await helpers.fetchCurrentKeys();
   assert.equal(keys.length, 1);
   assert.equal(keys[0].alias, "claudecode");
+});
+
+test('isInternalWarmupModel: detects warmup channel models correctly', () => {
+  const { isInternalWarmupModel } = load();
+  assert.equal(isInternalWarmupModel('warmup-antigravity-4689170d28b3/claude-opus-4-6-thinking'), true);
+  assert.equal(isInternalWarmupModel('warmup-codex-ee8ddbc3d36b/gpt-6-luna'), true);
+  assert.equal(isInternalWarmupModel('warmup-custom-account_1/gemini-3.8-flash-high'), true);
+  assert.equal(isInternalWarmupModel('gpt-6-luna'), false);
+  assert.equal(isInternalWarmupModel('gemini-3.8-flash-high'), false);
+  assert.equal(isInternalWarmupModel('claude-sonnet-4-6'), false);
+  assert.equal(isInternalWarmupModel(''), false);
 });

@@ -121,8 +121,8 @@ func pluginRegistration() registration {
 		Metadata: metadata{
 			Name:             "Key Model Access",
 			Version:          pluginVersion,
-			Author:           "Supra4E8C",
-			GitHubRepository: "https://github.com/LTbinglingfeng/key-model-access",
+			Author:           "Harold Labadie",
+			GitHubRepository: "https://github.com/haroldlabadie/key-model-access",
 			Logo:             "",
 			ConfigFields: []configField{
 				{Name: "policy_file", Type: "string", Description: "Optional strict YAML or TOML v2 policy document. The Web UI initializes a default plugin-owned config.toml when omitted."},

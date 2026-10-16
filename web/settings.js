@@ -136,6 +136,9 @@
       "picker.searchLabel": "搜索{title}模型",
       "picker.noMatch": "没有匹配的模型",
       "picker.footerMatched": "已匹配 {matched} / {total}",
+      "picker.showWarmupCount": "显示预热模型 ({count})",
+      "picker.hideWarmup": "隐藏预热模型",
+      "picker.warmupBadge": "预热",
       "picker.selectAll": "全选当前目录",
       "picker.clear": "清空",
       "picker.noCatalog": "没有可用模型目录。",
@@ -274,6 +277,9 @@
       "picker.searchLabel": ({ title }) => `Search models to ${String(title).toLowerCase()}`,
       "picker.noMatch": "No matching models",
       "picker.footerMatched": "{matched} / {total} matched",
+      "picker.showWarmupCount": "Show warmup models ({count})",
+      "picker.hideWarmup": "Hide warmup models",
+      "picker.warmupBadge": "Warmup",
       "picker.selectAll": "Select entire catalog",
       "picker.clear": "Clear",
       "picker.noCatalog": "No model catalog available.",
@@ -389,7 +395,8 @@
     openPicker: "",
     pickerQuery: "",
     pickerScroll: 0,
-    pickerAnimate: ""
+    pickerAnimate: "",
+    showWarmupModels: false
   };
 
   const $ = (selector) => document.querySelector(selector);
@@ -466,6 +473,10 @@
   function normalizeModels(value) {
     if (!Array.isArray(value)) return [];
     return [...new Set(value.map((model) => String(model).trim()).filter(Boolean))];
+  }
+
+  function isInternalWarmupModel(id) {
+    return /^warmup-[a-z0-9_-]+\//i.test(id);
   }
 
   function modelPatternMatches(pattern, model) {
@@ -1118,6 +1129,10 @@
     const wildcardSelected = selected.has("*");
     const matchedRuleFor = (model) => wildcardRules.find((rule) => modelPatternMatches(rule, model)) || "";
     const effectiveCatalogCount = state.models.filter((model) => selected.has(model.id) || matchedRuleFor(model.id)).length;
+    const warmupModelsCount = state.models.filter((model) => isInternalWarmupModel(model.id)).length;
+    const hiddenWarmupCount = state.showWarmupModels
+      ? 0
+      : state.models.filter((model) => isInternalWarmupModel(model.id) && !selected.has(model.id)).length;
     const isOpen = state.openPicker === kind;
     const summary = wildcardSelected
       ? t("picker.allModelsWildcard")
@@ -1149,14 +1164,21 @@
         <span class="model-badge">${wildcardLabel}</span>
       </button>`;
     }).join("");
-    const rows = state.models.map((model) => {
+    const visibleModels = state.models.filter((model) => {
+      if (state.showWarmupModels) return true;
+      if (selected.has(model.id)) return true;
+      return !isInternalWarmupModel(model.id);
+    });
+    const rows = visibleModels.map((model) => {
       const explicit = selected.has(model.id);
       const matchedRule = explicit ? "" : matchedRuleFor(model.id);
       const derived = Boolean(matchedRule);
       const checked = explicit || derived;
+      const isWarmup = isInternalWarmupModel(model.id);
       return `<button class="model-option ${checked ? "selected" : ""} ${derived ? "derived" : ""}" type="button" role="option" aria-selected="${checked}" aria-disabled="${derived}" data-action="toggle-model" data-kind="${kind}" data-model="${escapeHTML(model.id)}" data-locked="${derived}" data-search="${escapeHTML(`${model.id} ${model.displayName}`.toLowerCase())}">
         <span class="model-checkbox" aria-hidden="true">${checked ? icons.check : ""}</span>
         <span class="model-option-copy"><strong>${escapeHTML(model.id)}</strong>${model.displayName ? `<small>${escapeHTML(model.displayName)}</small>` : ""}${derived ? `<small>${escapeHTML(t("picker.matchedBy", { rule: matchedRule }))}</small>` : ""}</span>
+        ${isWarmup ? `<span class="model-badge warmup-badge">${escapeHTML(t("picker.warmupBadge"))}</span>` : ""}
         ${derived ? `<span class="model-badge">${wildcardLabel}</span>` : ""}
       </button>`;
     }).join("");
@@ -1171,7 +1193,13 @@
       ${isOpen ? `<div class="model-panel ${state.pickerAnimate === kind ? "animate-in" : ""}">
         ${state.models.length ? `<div class="model-search"><span>${icons.search}</span><input type="search" data-model-search="${kind}" value="${escapeHTML(state.pickerQuery)}" autocomplete="off" placeholder="${escapeHTML(t("picker.searchPlaceholder"))}" aria-label="${escapeHTML(t("picker.searchLabel", { title }))}"></div>
         <div class="model-list" role="listbox" aria-multiselectable="true">${wildcardRow}${presetRows}${rows}<p class="model-empty" hidden>${escapeHTML(t("picker.noMatch"))}</p></div>
-        <div class="model-panel-footer"><span>${escapeHTML(t("picker.footerMatched", { matched: effectiveCatalogCount, total: state.models.length }))}</span><div><button type="button" data-action="select-all-models" data-kind="${kind}">${escapeHTML(t("picker.selectAll"))}</button><button type="button" data-action="clear-models" data-kind="${kind}">${escapeHTML(t("picker.clear"))}</button></div></div>`
+        <div class="model-panel-footer">
+          <div class="footer-stats">
+            <span>${escapeHTML(t("picker.footerMatched", { matched: effectiveCatalogCount, total: state.models.length }))}</span>
+            ${warmupModelsCount > 0 ? `<button type="button" class="warmup-toggle-btn ${state.showWarmupModels ? "active" : ""}" data-action="toggle-warmup-models" data-kind="${kind}">${escapeHTML(state.showWarmupModels ? t("picker.hideWarmup") : t("picker.showWarmupCount", { count: hiddenWarmupCount }))}</button>` : ""}
+          </div>
+          <div><button type="button" data-action="select-all-models" data-kind="${kind}">${escapeHTML(t("picker.selectAll"))}</button><button type="button" data-action="clear-models" data-kind="${kind}">${escapeHTML(t("picker.clear"))}</button></div>
+        </div>`
         : `<div class="model-list compact" role="listbox" aria-multiselectable="true">${wildcardRow}</div><div class="catalog-notice"><span>${escapeHTML(state.modelsError || t("picker.noCatalog"))}</span><button type="button" data-action="refresh-models">${escapeHTML(t("picker.reload"))}</button></div>`}
       </div>` : ""}
     </div>`;
@@ -1584,8 +1612,17 @@
       updateModels(kind, (models) => models.includes(target.dataset.model) ? models.filter((model) => model !== target.dataset.model) : [...models, target.dataset.model]);
     } else if (action === "remove-model") {
       updateModels(kind, (models) => models.filter((model) => model !== target.dataset.model));
+    } else if (action === "toggle-warmup-models") {
+      const currentList = editor.querySelector(`[data-model-search="${kind}"]`)?.closest(".model-panel")?.querySelector(".model-list");
+      state.pickerScroll = currentList?.scrollTop || 0;
+      state.showWarmupModels = !state.showWarmupModels;
+      renderEditor();
+      restorePickerView(kind);
     } else if (action === "select-all-models") {
-      updateModels(kind, (models) => [...new Set([...models, ...state.models.map((model) => model.id)])]);
+      const candidates = state.models
+        .filter((model) => state.showWarmupModels || !isInternalWarmupModel(model.id))
+        .map((model) => model.id);
+      updateModels(kind, (models) => [...new Set([...models, ...candidates])]);
     } else if (action === "clear-models") {
       updateModels(kind, () => []);
     } else if (action === "refresh-models") {
