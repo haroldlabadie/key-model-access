@@ -37,6 +37,7 @@ type policyDocument struct {
 
 type policyConfig struct {
 	CallerScope string   `json:"caller_scope" yaml:"caller_scope" toml:"caller_scope"`
+	Alias       string   `json:"alias,omitempty" yaml:"alias,omitempty" toml:"alias,omitempty"`
 	AllowModels []string `json:"allow_models" yaml:"allow_models" toml:"allow_models"`
 	DenyModels  []string `json:"deny_models" yaml:"deny_models" toml:"deny_models"`
 }
@@ -196,6 +197,7 @@ func clonePolicyConfigs(policies []policyConfig) []policyConfig {
 	for index, policy := range policies {
 		cloned[index] = policyConfig{
 			CallerScope: policy.CallerScope,
+			Alias:       policy.Alias,
 			AllowModels: append([]string{}, policy.AllowModels...),
 			DenyModels:  append([]string{}, policy.DenyModels...),
 		}
@@ -278,6 +280,7 @@ func compileDocument(document policyDocument) (policySnapshot, policyDocument, e
 	for index := range document.Policies {
 		item := &document.Policies[index]
 		item.CallerScope = strings.ToLower(strings.TrimSpace(item.CallerScope))
+		item.Alias = strings.TrimSpace(item.Alias)
 		if !validSHA256(item.CallerScope) {
 			return policySnapshot{}, policyDocument{}, fmt.Errorf("policies[%d].caller_scope must be 64 hexadecimal characters", index)
 		}

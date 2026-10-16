@@ -168,7 +168,6 @@ jobs:
   build-freebsd:
     name: Build freebsd/amd64
     needs: test
-    continue-on-error: true
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -200,21 +199,54 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y clang lld wget
+          sudo apt-get install -y clang lld curl
 
       - name: Build FreeBSD shared library
-        timeout-minutes: 45
-        uses: go-cross/cgo-actions@v1
-        env:
-          GOFLAGS: -trimpath -buildmode=c-shared
-        with:
-          dir: .
-          packages: .
-          targets: freebsd-amd64
-          out-dir: dist/freebsd-amd64
-          output: ${{ env.PLUGIN_NAME }}.so
-          flags: -ldflags=-s -w
-          x-flags: main.pluginVersion=${{ steps.release_metadata.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/freebsd-amd64
+          sysroot_dir="/tmp/freebsd-sysroot"
+          rm -rf "$sysroot_dir"
+          mkdir -p "$sysroot_dir"
+          trap 'sudo rm -rf "$sysroot_dir" /tmp/base.txz' EXIT
+
+          urls=(
+            "https://download.freebsd.org/releases/amd64/14.4-RELEASE/base.txz"
+            "https://archive.freebsd.org/old-releases/amd64/14.4-RELEASE/base.txz"
+            "https://archive.freebsd.org/old-releases/amd64/14.3-RELEASE/base.txz"
+          )
+
+          downloaded=false
+          for url in "${urls[@]}"; do
+            echo "Attempting to download FreeBSD base.txz from ${url}..."
+            if curl -fsSL --retry 3 --retry-connrefused "$url" -o /tmp/base.txz; then
+              echo "Successfully downloaded FreeBSD base.txz from ${url}"
+              downloaded=true
+              break
+            else
+              echo "Download failed from ${url}, trying next candidate..."
+            fi
+          done
+
+          if [[ "$downloaded" != "true" ]]; then
+            echo "Error: Failed to download FreeBSD base.txz from all candidate mirrors" >&2
+            exit 1
+          fi
+
+          echo "Extracting FreeBSD sysroot to ${sysroot_dir}..."
+          sudo tar -xf /tmp/base.txz -C "$sysroot_dir"
+          rm -f /tmp/base.txz
+
+          echo "Building FreeBSD shared library with CGO..."
+          CGO_ENABLED=1 \
+          GOOS=freebsd \
+          GOARCH=amd64 \
+          CGO_LDFLAGS="-fuse-ld=lld" \
+          CC="clang --target=x86_64-unknown-freebsd14 --sysroot=${sysroot_dir}" \
+          go build -trimpath -buildmode=c-shared \
+            -ldflags="-s -w -X main.pluginVersion=${{ steps.release_metadata.outputs.version }}" \
+            -o "dist/freebsd-amd64/${PLUGIN_NAME}.so" .
 
       - name: Package plugin
         run: |
@@ -240,6 +272,7 @@ jobs:
     needs:
       - build
       - build-windows-arm64
+      - build-freebsd
     runs-on: ubuntu-24.04
     steps:
       - name: Download build artifacts

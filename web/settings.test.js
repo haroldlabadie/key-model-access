@@ -139,3 +139,32 @@ test('standalone auth: readSavedManagementKey prioritizes local storage over CPA
   helpers.clearSavedManagementKey();
   assert.equal(helpers.readSavedManagementKey(), '');
 });
+
+test("policy normalization preserves non-empty alias and trims whitespace", () => {
+  const helpers = load();
+  const raw = {
+    version: 2,
+    policies: [
+      { caller_scope: "a".repeat(64), alias: "  codex-dev  ", allow_models: ["*"], deny_models: [] },
+      { caller_scope: "b".repeat(64), alias: "   ", allow_models: ["gpt-4"], deny_models: [] }
+    ]
+  };
+  const normalized = helpers.normalizePolicyDocument(raw);
+  assert.equal(normalized.policies[0].alias, "codex-dev");
+  assert.equal(normalized.policies[1].alias, undefined);
+});
+
+test("fetchCurrentKeys maps aliases from CPAMC api-key-aliases endpoint", async () => {
+  const key = "sk-test-key-12345";
+  const keyHash = createHash("sha256").update(key).digest("hex");
+  const helpers = load((path) => {
+    if (path === "/v0/management/api-keys") return { "api-keys": [key] };
+    if (path === "/v0/management/api-key-aliases") {
+      return { items: [{ api_key_hash: keyHash, alias: "production-key" }] };
+    }
+    throw new Error("Unexpected path: " + path);
+  });
+  const keys = await helpers.fetchCurrentKeys();
+  assert.equal(keys.length, 1);
+  assert.equal(keys[0].alias, "production-key");
+});

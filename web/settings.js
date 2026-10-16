@@ -114,6 +114,9 @@
       "rules.count": "{count} 条规则",
       "key.fingerprintTitle": "caller scope 指纹",
       "key.privacy": "页面只显示 Key 的首尾片段用于辨认；完整 Key 仅在内存中短暂用于计算 caller scope 与读取模型目录，不会写入页面、浏览器存储或 URL。",
+      "key.aliasLabel": "Key 别名",
+      "key.aliasHint": "设置便于辨认的名称，将在侧边栏和概览列表中优先显示",
+      "key.aliasPlaceholder": "例如 codex、生产环境等",
       "picker.allModelsWildcard": "全部模型（*，包含未来新增）",
       "picker.matched": "已匹配 {matched} / {total} 个模型",
       "picker.chooseFrom": "从 {total} 个模型中选择",
@@ -249,6 +252,9 @@
       "rules.count": ({ count }) => `${count} ${plural(count, "rule", "rules")}`,
       "key.fingerprintTitle": "caller scope fingerprint",
       "key.privacy": "Only the first and last characters of each key are shown for identification. The full key is held in memory only briefly to compute the caller scope and read the model catalog, and is never written to the page, browser storage, or URLs.",
+      "key.aliasLabel": "Key Alias",
+      "key.aliasHint": "Set a recognizable name to display prominently across the sidebar and overview",
+      "key.aliasPlaceholder": "e.g. codex, prod, dev",
       "picker.allModelsWildcard": "All models (*, including future ones)",
       "picker.matched": ({ matched, total }) => `${matched} / ${total} ${plural(total, "model", "models")} matched`,
       "picker.chooseFrom": ({ total }) => `Choose from ${total} ${plural(total, "model", "models")}`,
@@ -478,16 +484,19 @@
       if (!/^[0-9a-f]{64}$/.test(scope)) throw new Error(t("error.policyScopeInvalid", { index: index + 1 }));
       if (seen.has(scope)) throw new Error(t("error.policyScopeDuplicate", { index: index + 1 }));
       seen.add(scope);
+      const alias = typeof item.alias === "string" ? item.alias.trim() : "";
       for (const field of ["allow_models", "deny_models"]) {
         if (!Array.isArray(item[field]) || item[field].some((model) => typeof model !== "string" || !model.trim())) {
           throw new Error(t("error.policyFieldInvalid", { index: index + 1, field }));
         }
       }
-      return {
+      const entry = {
         caller_scope: scope,
         allow_models: normalizeModels(item.allow_models),
         deny_models: normalizeModels(item.deny_models)
       };
+      if (alias) entry.alias = alias;
+      return entry;
     });
     return { version: 2, policies };
   }
@@ -663,19 +672,45 @@
     const temporaryValues = values.slice();
     const normalizedValues = temporaryValues.map((value) => String(value).trim()).filter(Boolean);
     try {
-      const [scopes, catalog] = await Promise.all([
+      const [scopes, keyHashes, aliasesPayload, catalog] = await Promise.all([
         Promise.all(normalizedValues.map((value) => sha256Hex(`cli-proxy-api:caller-scope:v1\0${value}`))),
+        Promise.all(normalizedValues.map((value) => sha256Hex(value))),
+        api("/v0/management/api-key-aliases", { method: "GET" }).catch(() => null),
         options.includeCatalog ? fetchModelCatalog(normalizedValues[0] || "") : Promise.resolve(null)
       ]);
+      const aliasMap = new Map();
+      if (aliasesPayload) {
+        const items = Array.isArray(aliasesPayload)
+          ? aliasesPayload
+          : Array.isArray(aliasesPayload.items)
+            ? aliasesPayload.items
+            : Array.isArray(aliasesPayload.aliases)
+              ? aliasesPayload.aliases
+              : [];
+        items.forEach((item) => {
+          if (item?.api_key_hash && item?.alias) {
+            aliasMap.set(String(item.api_key_hash).toLowerCase(), String(item.alias).trim());
+          }
+        });
+        if (typeof aliasesPayload === "object" && !Array.isArray(aliasesPayload)) {
+          Object.entries(aliasesPayload).forEach(([hash, alias]) => {
+            if (typeof alias === "string" && /^[0-9a-f]{64}$/i.test(hash)) {
+              aliasMap.set(hash.toLowerCase(), alias.trim());
+            }
+          });
+        }
+      }
       const seen = new Set();
       const keys = [];
       scopes.forEach((scope, index) => {
         if (seen.has(scope)) return;
         seen.add(scope);
+        const cpampAlias = aliasMap.get(keyHashes[index]) || "";
         keys.push({
           scope,
           fingerprint: shortFingerprint(scope),
           mask: maskKey(normalizedValues[index]),
+          alias: cpampAlias,
           allow_models: [],
           deny_models: []
         });
@@ -762,13 +797,14 @@
       const policy = byScope.get(key.scope);
       return {
         ...key,
+        alias: (policy && policy.alias) || key.alias || "",
         allow_models: policy ? [...policy.allow_models] : [],
         deny_models: policy ? [...policy.deny_models] : []
       };
     });
     state.stalePolicies = documentValue.policies
       .filter((policy) => !currentScopes.has(policy.caller_scope))
-      .map((policy) => ({ ...policy, allow_models: [...policy.allow_models], deny_models: [...policy.deny_models] }));
+      .map((policy) => ({ ...policy, alias: policy.alias || "", allow_models: [...policy.allow_models], deny_models: [...policy.deny_models] }));
   }
 
   function installRemoteData(remote, preferredScope = "") {
@@ -944,9 +980,10 @@
 
   function renderNav() {
     const query = state.search.trim().toLowerCase();
-    const visible = state.keys.map((key, index) => ({ key, index })).filter(({ key, index }) =>
-      !query || key.mask.toLowerCase().includes(query) || key.fingerprint.toLowerCase().includes(query) || keyLabel(index).toLowerCase().includes(query)
-    );
+    const visible = state.keys.map((key, index) => ({ key, index })).filter(({ key, index }) => {
+      const alias = (key.alias || "").toLowerCase();
+      return !query || alias.includes(query) || key.mask.toLowerCase().includes(query) || key.fingerprint.toLowerCase().includes(query) || keyLabel(index).toLowerCase().includes(query);
+    });
     nav.innerHTML = `
       <button class="nav-item" type="button" data-select="overview" aria-current="${state.selectedIndex < 0 ? "page" : "false"}">
         <span class="nav-icon">${icons.overview}</span>
@@ -954,9 +991,9 @@
       </button>
       <p class="nav-group-label"><span>API Keys</span><span id="policyCount">${state.keys.length}</span></p>
       ${visible.length ? visible.map(({ key, index }) => `
-        <button class="nav-item" type="button" data-select="key" data-index="${index}" aria-current="${state.selectedIndex === index ? "page" : "false"}" aria-label="${escapeHTML(keyLabel(index))}${escapeHTML(t("list.separator"))}${escapeHTML(key.mask)}" title="SHA-256 ${escapeHTML(key.fingerprint)}">
+        <button class="nav-item" type="button" data-select="key" data-index="${index}" aria-current="${state.selectedIndex === index ? "page" : "false"}" aria-label="${escapeHTML(key.alias || keyLabel(index))}${escapeHTML(t("list.separator"))}${escapeHTML(key.mask)}" title="SHA-256 ${escapeHTML(key.fingerprint)}">
           <span class="nav-icon">${icons.key}</span>
-          <span class="nav-copy"><strong>${escapeHTML(keyLabel(index))}</strong><span>${escapeHTML(key.mask)}</span></span>
+          <span class="nav-copy"><strong>${escapeHTML(key.alias || keyLabel(index))}</strong><span>${escapeHTML(key.mask)}</span></span>
           ${ruleBadge(key)}
         </button>`).join("") : `<p class="empty-nav">${escapeHTML(t(query ? "nav.noMatch" : "nav.noKeys"))}</p>`}
     `;
@@ -987,7 +1024,7 @@
       : "";
     const keyRows = state.keys.map((key, index) => `
       <button class="key-row" type="button" data-select="key" data-index="${index}">
-        <span class="key-row-name"><strong>${escapeHTML(keyLabel(index))}</strong><span class="mono">${escapeHTML(key.mask)}</span></span>
+        <span class="key-row-name"><strong>${escapeHTML(key.alias || keyLabel(index))}</strong><span class="mono">${escapeHTML(key.mask)}</span></span>
         <span class="key-row-rules">${hasRules(key) ? `${rulesSummary(key.allow_models, t("rules.allow"))}${rulesSummary(key.deny_models, t("rules.deny"), true)}` : `<span class="muted">${escapeHTML(t("rules.defaultAllowAll"))}</span>`}</span>
         <span class="key-row-chevron" aria-hidden="true">${icons.chevronRight}</span>
       </button>`).join("");
@@ -1047,13 +1084,24 @@
     const empty = !hasRules(key);
     editor.innerHTML = `
       <header class="editor-head">
-        <h1>${escapeHTML(keyLabel(index))}</h1>
+        <h1>${escapeHTML(key.alias || keyLabel(index))}</h1>
         <p class="editor-subtitle key-summary">
           <span class="key-mask mono">${escapeHTML(key.mask)}</span>
           <span class="key-fingerprint mono" title="${escapeHTML(t("key.fingerprintTitle"))}">SHA-256 ${escapeHTML(key.fingerprint)}</span>
           <span class="pill ${empty ? "" : "active"}">${escapeHTML(t(empty ? "rules.defaultAllowAll" : "rules.configured"))}</span>
         </p>
       </header>
+      <section class="card key-meta-card">
+        <div class="form-field">
+          <label class="alias-field-label" for="keyAliasInput">
+            <strong>${escapeHTML(t("key.aliasLabel"))}</strong>
+            <span class="muted">${escapeHTML(t("key.aliasHint"))}</span>
+          </label>
+          <div class="alias-input-row">
+            <input id="keyAliasInput" class="alias-input" type="text" placeholder="${escapeHTML(t("key.aliasPlaceholder"))}" value="${escapeHTML(key.alias || "")}" autocomplete="off" maxlength="64">
+          </div>
+        </div>
+      </section>
       <section class="card rules-card">
         ${modelPicker("allow_models", t("rules.allow"), t("rules.allowDescription"), key.allow_models, false)}
         ${modelPicker("deny_models", t("rules.deny"), t("rules.denyDescription"), key.deny_models, true)}
@@ -1208,16 +1256,24 @@
   }
 
   function serializablePolicy() {
-    const active = state.keys.filter(hasRules).map((key) => ({
-      caller_scope: key.scope,
-      allow_models: [...key.allow_models],
-      deny_models: [...key.deny_models]
-    }));
-    const stale = state.stalePolicies.map((policy) => ({
-      caller_scope: policy.caller_scope,
-      allow_models: [...policy.allow_models],
-      deny_models: [...policy.deny_models]
-    }));
+    const active = state.keys.filter((key) => hasRules(key) || Boolean(key.alias && key.alias.trim())).map((key) => {
+      const item = {
+        caller_scope: key.scope,
+        allow_models: [...key.allow_models],
+        deny_models: [...key.deny_models]
+      };
+      if (key.alias && key.alias.trim()) item.alias = key.alias.trim();
+      return item;
+    });
+    const stale = state.stalePolicies.map((policy) => {
+      const item = {
+        caller_scope: policy.caller_scope,
+        allow_models: [...policy.allow_models],
+        deny_models: [...policy.deny_models]
+      };
+      if (policy.alias && policy.alias.trim()) item.alias = policy.alias.trim();
+      return item;
+    });
     return { version: 2, policies: [...active, ...stale] };
   }
 
@@ -1312,6 +1368,7 @@
   function policiesEquivalent(leftRaw, rightRaw) {
     const canonical = (raw) => normalizePolicyDocument(raw).policies.map((policy) => ({
       caller_scope: policy.caller_scope,
+      alias: policy.alias || "",
       allow_models: [...policy.allow_models].sort(),
       deny_models: [...policy.deny_models].sort()
     })).sort((left, right) => left.caller_scope.localeCompare(right.caller_scope));
@@ -1536,6 +1593,17 @@
 
   editor.addEventListener("input", (event) => {
     if (event.target.matches("[data-model-search]")) filterModelPicker(event.target);
+    if (event.target && event.target.id === "keyAliasInput") {
+      const index = Number(editor.dataset.keyIndex);
+      if (Number.isInteger(index) && state.keys[index]) {
+        const val = event.target.value;
+        state.keys[index].alias = val;
+        markDirty();
+        scheduleNavRender();
+        const headTitle = editor.querySelector(".editor-head h1");
+        if (headTitle) headTitle.textContent = val.trim() || keyLabel(index);
+      }
+    }
   });
 
   document.addEventListener("keydown", (event) => {

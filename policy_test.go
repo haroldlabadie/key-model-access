@@ -594,3 +594,19 @@ func TestCaseInsensitiveModelMatching(t *testing.T) {
 		}
 	}
 }
+
+func TestCompileDocumentPreservesAndTrimsAlias(t *testing.T) {
+	document := policyDocument{
+		Version: 2,
+		Policies: []policyConfig{
+			{CallerScope: scopeA, Alias: "  codex-alias  ", AllowModels: []string{"gpt-*"}},
+		},
+	}
+	_, sanitized, err := compileDocument(document)
+	if err != nil {
+		t.Fatalf("compileDocument error: %v", err)
+	}
+	if sanitized.Policies[0].Alias != "codex-alias" {
+		t.Fatalf("expected trimmed alias 'codex-alias', got %q", sanitized.Policies[0].Alias)
+	}
+}
