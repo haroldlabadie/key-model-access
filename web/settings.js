@@ -688,8 +688,10 @@
               ? aliasesPayload.aliases
               : [];
         items.forEach((item) => {
-          if (item?.api_key_hash && item?.alias) {
-            aliasMap.set(String(item.api_key_hash).toLowerCase(), String(item.alias).trim());
+          const hash = String(item?.apiKeyHash || item?.api_key_hash || item?.keyHash || item?.hash || item?.key_hash || "").trim().toLowerCase();
+          const alias = String(item?.alias || item?.name || item?.label || "").trim();
+          if (hash && alias) {
+            aliasMap.set(hash, alias);
           }
         });
         if (typeof aliasesPayload === "object" && !Array.isArray(aliasesPayload)) {

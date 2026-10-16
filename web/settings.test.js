@@ -168,3 +168,18 @@ test("fetchCurrentKeys maps aliases from CPAMC api-key-aliases endpoint", async 
   assert.equal(keys.length, 1);
   assert.equal(keys[0].alias, "production-key");
 });
+
+test("fetchCurrentKeys maps aliases from CPAMP camelCase apiKeyHash endpoint", async () => {
+  const key = "sk-test-cpamp-key-999";
+  const keyHash = createHash("sha256").update(key).digest("hex");
+  const helpers = load((path) => {
+    if (path === "/v0/management/api-keys") return { "api-keys": [key] };
+    if (path === "/v0/management/api-key-aliases") {
+      return { items: [{ apiKeyHash: keyHash, alias: "claudecode" }] };
+    }
+    throw new Error("Unexpected path: " + path);
+  });
+  const keys = await helpers.fetchCurrentKeys();
+  assert.equal(keys.length, 1);
+  assert.equal(keys[0].alias, "claudecode");
+});
