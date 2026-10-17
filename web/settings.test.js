@@ -186,8 +186,8 @@ test("fetchCurrentKeys maps aliases from CPAMP camelCase apiKeyHash endpoint", a
 
 test('isInternalWarmupModel: detects warmup channel models correctly', () => {
   const { isInternalWarmupModel } = load();
-  assert.equal(isInternalWarmupModel('warmup-antigravity-4689170d28b3/claude-opus-4-6-thinking'), true);
-  assert.equal(isInternalWarmupModel('warmup-codex-ee8ddbc3d36b/gpt-6-luna'), true);
+  assert.equal(isInternalWarmupModel('warmup-antigravity-012345abcdef/claude-opus-4-6-thinking'), true);
+  assert.equal(isInternalWarmupModel('warmup-codex-89abcdef0123/gpt-6-luna'), true);
   assert.equal(isInternalWarmupModel('warmup-custom-account_1/gemini-3.8-flash-high'), true);
   assert.equal(isInternalWarmupModel('gpt-6-luna'), false);
   assert.equal(isInternalWarmupModel('gemini-3.8-flash-high'), false);
