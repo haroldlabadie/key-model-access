@@ -1,94 +1,71 @@
 # CPA Key Model Access 插件
 
-CLIProxyAPI（CPA）原生动态库插件。CPA 继续使用顶层 `api-keys` 完成下游认证；本插件在请求与模型目录响应中读取 CPA 提供的 `Metadata.caller_scope`，为**已经存在的 CPA API Key**执行模型 allow/deny。
+CLIProxyAPI（CPA）的原生动态库扩展插件。在 CPA 保持顶层 API Key 基础认证的前提下，基于请求与目录上下文读取调用者身份，提供**全局模型禁用**与**按 API Key 细粒度模型访问控制（Allow / Deny）**，并支持下游客户端模型目录的动态过滤。
 
-> `0.1.x` 相对 `0.0.2` 是 breaking pre-1 minor。v1 策略不兼容，从 0.0.2 升级前必须完成下文的迁移步骤。
+---
 
-## 工作边界
+## 1. 解决的核心问题
 
-- API Key 的创建、删除、保存和认证完全由 CPA 内置 provider 负责。
-- 插件不创建、删除或保存原始 Key，也不提供 Key 管理或认证 provider；Web UI 只读获取现有 CPA Key 以关联 scope。
-- CPA 认证成功后把稳定的 `caller_scope` 放入 RequestInterceptor Metadata；插件只用该 scope 查找模型策略。
-- 没有关联策略的现有 Key 默认允许全部模型。
-- 已有关联策略时：`deny_models` 优先；`allow_models` 非空时作为白名单；`allow_models` 为空时允许所有未被 deny 的模型。
-- `*` 匹配任意长度字符（包括 `/`），`?` 匹配一个字符；匹配忽略大小写，与 Web UI 一致。
-- 模型名优先取 CPA 的 `RequestedModel`，为空时取 `Model`。
+1. **缺乏按 Key 细粒度的模型权限隔离**：CPA 原生仅支持对上游 OAuth 凭据进行模型禁用，无法为不同的下游 API Key 分配不同的可用模型范围。当多个团队或不同用途的客户端共享同一套 CPA 实例时，无法防止低权限 Key 滥用高成本或特定渠道模型。
+2. **缺乏一键全局强拦截机制**：当某个模型发生故障、超额或需要全网下线时，传统方式需要逐个凭据或逐个 Key 配置，容易出现疏漏；需要提供一个对所有凭据、所有 Key 立即生效的全局拦截防线。
+3. **客户端模型目录展示与权限脱节**：下游客户端（如 OpenAI SDK、Codex、Claude Desktop、Chatbox 等）拉取 `/v1/models` 目录时，如果返回全量模型，用户在选择器中依然能看到已被禁用的模型，发起调用后才报错，用户体验割裂。
 
-本插件不是认证层。未知或无效 Key 是否可用，由 CPA 顶层 `api-keys` 决定；不要把 Key 只写在插件配置中。
+---
 
-0.5.1 界面调整：全局禁用统一使用模型选择器，移除重复的手动输入框与“添加规则”按钮。已有规则保留并可删除，通配符仍可在选择器中选取。
+## 2. 技术方案与核心架构
 
-## 0.5.0：按调用 Key 过滤目录
+### 2.1 判定流转引擎
 
-普通客户端的模型列表按全局禁用及当前 Key 的 allow/deny 过滤；覆盖 OpenAI `data/id`、Codex `models/slug`、Claude 目录与 Gemini `models/name`。保留各条目的完整元数据；设置保存后下一次获取目录立即生效。客户端自己保留的旧列表需要重新获取。
-
-管理页面通过受管理认证保护的 `/v0/management/plugins/key-model-access/catalog` 获取过滤前的 OpenAI 候选目录，避免禁用后无法重新选择；缓存由普通目录请求刷新，不保存 Key。Claude/Codex 目录不会覆盖该候选快照。
-
-**宿主要求**：目录 hook 必须传递 CPA 认证后的 `Metadata.caller_scope`。上游 v8.0.33 没有传递此字段，须先应用 [宿主补丁](host-patches/cpa-v8.0.33-catalog-identity.patch)，运行补丁包含的宿主测试，再与 0.5.0 一起部署。缺失身份时返回空目录，绝不从请求头猜测身份。补丁只补充目录 hook 的认证身份，不改变认证流程。
-
-目录按公开模型 ID 判定；保留的 `warmup-账号/模型` 还检查全局规则中的裸模型。其他别名的隐藏依据公开 ID；若全局规则只匹配不可见的上游原名，别名可能仍显示，但实际调用仍经过最终执行名校验并被拒绝。目录展示不能替代请求授权。
-
-## 兼容性
-
-- CLIProxyAPI **v7.2.103 或更新版本**。
-- 最低要求 CPA 插件 RPC schema 2，用于 RequestInterceptor 主动返回结构化 `403`；插件最高声明 schema 6，在新后端上保留管理响应的原始业务字符串，避免 HTML 实体转义改变模型规则或路径。
-- RPC schema 与策略文件版本独立：支持读取策略 **version 2 / 3**；新版页面保存为 v3，包含 `global_deny_models`。v3 启用后拒绝旧客户端的 v2 写入，避免丢失全局规则。宿主协商 schema 2–5 时，是否转义管理响应取决于宿主实现；使用含特殊字符的路径或规则时建议升级到支持 schema 6 的后端。
-- 支持 CPA 动态插件的 CGO 构建；需要 Go 1.24、C 编译器和 `CGO_ENABLED=1`。
-- 可通过任一 Management API 响应头 `X-CPA-SUPPORT-PLUGIN: 1` 确认 CPA 二进制支持插件。
-
-## 安装
-
-### 1. 构建或安装动态库
-
-```bash
-make test
-make build
-make package
-```
-
-macOS arm64 使用默认版本时会生成：
+插件采用分层级联判定逻辑，严格按照以下优先级执行检查：
 
 ```text
-dist/key-model-access.dylib
-dist/key-model-access_0.1.3_darwin_arm64.zip
-dist/key-model-access_0.1.3_darwin_arm64.zip.sha256
+下游请求到达 CPA
+       │
+       ▼
+[阶段 1: 全局禁用 (Global Deny)]
+       ├── 命中全局禁用规则 ────────────► 立即拒绝 (403: global_deny)
+       ▼ 未命中
+[阶段 2: Key 级禁用 (Key Deny)]
+       ├── 命中该 Key 的 deny_models ───► 立即拒绝 (403: key_deny)
+       ▼ 未命中
+[阶段 3: Key 级允许 (Key Allow)]
+       ├── Key 配置了 allow_models:
+       │     ├── 命中白名单 ─────────────► 放行并转发至上游
+       │     └── 未命中白名单 ───────────► 拒绝访问 (403: not_allowed)
+       └── Key 未配置 allow_models:
+             └── 默认放行 ───────────────► 放行并转发至上游
 ```
 
-动态库扩展名：
+- **多模式通配匹配**：支持精确模型名称、家族通配符（如 `gpt-*`、`claude-*`）、内部预热路由通配符（`warmup-*/*`）及自定义模式。匹配过程忽略大小写。
+- **后缀与别名归一化**：自动识别 CPA 的推理级别后缀（如 `(high)`、`(8192)`）与别名映射，确保规则始终匹配到实际生效的模型标识。
 
-- macOS：`key-model-access.dylib`
-- Linux / FreeBSD：`key-model-access.so`
-- Windows：`key-model-access.dll`
+### 2.2 请求拦截 (RequestInterceptor)
 
-自动安装到本机 CPA 平台目录：
+- 挂载 CPA 原生 C-ABI `RequestInterceptor` 钩子。
+- 依赖 CPA 鉴权后注入的确定性调用者身份标识（`Metadata.caller_scope`），插件仅使用该 scope 检索策略，不在插件内明文持久化或传递真实 API Key。
+- 遇到规则拒绝时，主动返回标准化的结构化 `403` 错误，阻断请求流向上游。
 
-```bash
-make install CPA_DIR=/path/to/CLIProxyAPI
-```
+### 2.3 目录动态过滤 (CatalogFilter)
 
-也可手动复制到：
+- 拦截并过滤下游获取模型列表的请求，涵盖 OpenAI（`data/id`）、Codex（`models/slug`）、Claude 目录及 Gemini（`models/name`）。
+- 结合全局禁用清单与当前发起请求的 API Key 策略，实时剔除不可用的模型条目。
+- 保证客户端“所见即可用”，从源头上避免客户端误选不可用模型。
 
-```text
-<CPA>/plugins/<GOOS>/<GOARCH>/key-model-access.<ext>
-```
+### 2.4 内嵌管理面板与原子持久化
 
-动态库基础 ID 必须是 `key-model-access`，并与 `plugins.configs.key-model-access` 一致；也可使用 CPA 支持的 `key-model-access-v<version>.<ext>` 后缀。`c-shared` 产物应在目标系统上构建，不能只设置 `GOOS` 做普通交叉编译。
+- **无缝嵌入 CPAMC**：插件 Web UI 注册为原生管理面板，自动复用 CPAMC 既有会话与主题风格，无需单独输入管理凭据。
+- **直观的模型选择器**：管理界面内置统一的模型选择器与通配符分组，告别繁琐的手动输入与拼写错误。
+- **原子化文件存储**：策略独立持久化存储为 TOML 或 YAML 文件，支持基于 ETag / `If-Match` 的并发修改保护与内存热重载。
 
-可覆盖构建参数：
+---
 
-```bash
-make build GOOS=darwin GOARCH=arm64 BUILD_DIR=/path/to/plugins/darwin/arm64
-make package VERSION=0.2.0
-```
+## 3. 配置示例
 
-### 2. 配置 CPA Key 与空的 v2 策略
+### 3.1 CPA `config.yaml` 声明
 
-将 [`config.example.yaml`](./config.example.yaml) 合并到 CPA `config.yaml`。首次启动建议使用内联空策略，不要引用尚不存在的文件：
+在 CPA 主配置文件中启用插件：
 
 ```yaml
-api-keys:
-  - "replace-with-a-real-api-key"
-
 plugins:
   enabled: true
   dir: "plugins"
@@ -96,352 +73,73 @@ plugins:
     key-model-access:
       enabled: true
       priority: 100
-      version: 2
-      policies: []
+      policy_file: "plugins/key-model-access/config.toml"
 ```
 
-此状态下，CPA 顶层 `api-keys` 仍负责认证，插件对所有已认证 Key 默认允许全部模型。随后应在维护窗口内通过 Web UI 为需要限制的 Key 生成 v2 策略。
-
-### 3. 默认持久化
-
-首次打开 Web UI 时，页面会通过 CPA 官方 Management API 读取实际的 `plugins.dir`，自动创建：
-
-```text
-<plugins.dir>/key-model-access/config.toml
-```
-
-随后页面会将该路径写入 `plugins.configs.key-model-access.policy_file`，由 CPA 保存配置并触发插件重配置。初始化会保留当前有效的内联 v2 策略；若目标文件已经存在，只会校验并复用，不会覆盖。之后 UI 修改会以 `0600` 权限原子保存，CPA 或插件重启后仍然存在。
-
-之所以由 Web UI 发现目录，而不是由动态库猜测自身路径，是因为 CPA 的插件 ABI 不传递 `plugins.dir`，该目录可自定义，且 Windows 会从临时 shadow copy 加载 DLL。
-
-新版后端的插件列表接口对 `plugins_dir` 使用 HTML 实体转义，UI 仅在该字段读取边界解码一次。旧后端若原样返回含 `&lt;` 等实体字面量的目录名，无法从响应区分两者；此类旧部署应显式配置 `policy_file`，跳过自动目录发现。
-
-如需把策略放到其他位置，可显式配置已有的 YAML 或 TOML 文件：
-
-```yaml
-policy_file: "config/key-model-access-policies.yaml"
-```
-
-显式目标必须预先存在且是有效的 v2 文档；不存在或无效时插件会 fail closed。相对路径以 CPA 工作目录为准。配置了 `policy_file` 后，该文件是权威策略来源；内联 `version` / `policies` 不再生效。
-
-Docker 部署应以**可写**方式持久化整个插件目录：
-
-```yaml
-volumes:
-  - ./plugins:/CLIProxyAPI/plugins
-```
-
-若显式使用其他策略目录，也要持久化整个目录。不要只 bind mount 单个策略文件；插件使用同目录临时文件、`fsync` 和 `rename` 原子替换，单文件挂载通常会阻止保存。插件目录只读或 CPA 配置文件不可写时，自动初始化会在 UI 中报告错误并继续使用内存模式。
-
-## 从 0.0.2 / v1 升级
-
-v1 的 Key 身份和 v2 的 `caller_scope` 架构不同，旧策略不能原地转换。升级前必须：
-
-1. 在受控维护窗口内停止外部流量，并备份 CPA 配置和旧策略。
-2. 确保每个仍需使用的**原始 Key**都保留或迁移到 CPA 顶层 `api-keys`。只有旧 `key_sha256` 而没有原始 Key 时，无法把该凭据恢复到 CPA；应创建替代 Key 并更新客户端。
-3. 从插件配置和旧策略中移除 v1 字段：`keys`、`default_action`、`models_endpoint`、`allow_query_keys`。
-4. 移除指向 v1 文件的 `policy_file`，先改为内联 `version: 2`、`policies: []`。不要让 0.1.0 读取 v1 文件；它会拒绝 v1 并在首次启动时 fail closed。
-5. 安装 0.1.0 并重启 CPA，先验证顶层 Key 仍由 CPA 正常认证。
-6. 打开 Web UI，读取当前 CPA Key，并为需要限制的 Key **重新生成 v2 策略**。
-7. 打开新版 Web UI，让它自动创建并配置默认 `config.toml`，重新核对并保存。若使用显式自定义路径，则先创建有效的 v2 文件。
-
-空 v2 策略会默认允许所有已认证 Key 调用所有被拦截器覆盖的模型。迁移期间应保持外部流量关闭，直到限制策略已重新生成并验证。
-
-## Web UI
-
-插件启用后访问：
-
-```text
-http://<CPA_HOST>:<CPA_PORT>/v0/resource/plugins/key-model-access/settings
-```
-
-页面会以“模型权限”注册到支持插件资源菜单的 CPAMC 管理界面。UI 不再要求重复输入 Management Key，而是只读复用 CPAMC 已保存的 `cli-proxy-auth` 同源会话，并自动同步 CPAMC 的主题。自动接入要求：
-
-- CPAMC 页面与 CPA API 使用相同 origin（协议、主机和端口均相同）；
-- 登录 CPAMC 时启用“记住密码”，使 Management Key 存在于 CPAMC 的 Local Storage 会话中。
-
-条件不满足时，页面会提示返回 CPAMC 修复会话，不提供手工密钥输入。接入成功后 UI 会：
-
-1. 若尚未持久化，读取 CPA 的 `plugins_dir`，创建 `<plugins.dir>/key-model-access/config.toml`，再通过 CPA 官方插件配置 API 写入 `policy_file`；
-2. `GET /v0/management/api-keys`，只读获取 CPA 当前顶层 Key；
-3. 在浏览器内按 CPA 的规则计算对应 `caller_scope`；
-4. 临时使用第一个 CPA API Key 读取 `GET /v1/models`，生成可搜索、多选的模型目录；
-5. 读取插件 v2/v3 策略并按 scope 关联；
-6. 通过选择器编辑、保存 `allow_models` 和 `deny_models`。选择器提供精确模型、全部模型 `*`、当前目录可识别的常用模型家族通配符，以及预热模型名称通配符 `warmup-*/*`；这些规则统一归入“通配符”，与“具体模型”列表分开；已有的其他自定义通配符会继续保留并显示其目录匹配结果。`warmup-*/*` 始终可选，即使目录暂未返回预热路由。
-
-UI 不创建、修改或删除 CPA Key，也不会向 `/v0/management/api-keys` 发出写请求。Key 生命周期仍应通过 CPA 配置或 CPA 自身管理能力完成。UI 会在策略保存前后核对 CPA Key 集合：保存前发现变化会中止并要求刷新；保存后发现变化会立即警告新 Key 当前默认允许全部。两次请求之间仍无法形成事务，因此 Key 变更和策略保存应由运维流程串行化。不再对应当前 Key 的旧 scope 会标记为失效策略，并在保存时保留，避免静默删除。
-
-### UI 安全边界
-
-- `/v0/management/api-keys` 会把原始 Key 返回给已通过 Management 认证的浏览器。UI 仅在 JavaScript 中短暂用于计算 scope，并用第一个 Key 读取模型目录；随后尽力清空临时数组。为便于辨认，UI 只显示每个 Key 的掩码片段（例如 `sk-abcd••••••wxyz`；短 Key 显示更少字符，少于 8 位则完全隐藏）。完整 Key 不会写入 DOM、Local Storage、Session Storage、URL 或插件策略。
-- Management Key 由 CPAMC 决定是否持久化。插件只读解析 CPAMC 的同源会话，在自己的 JavaScript 内存中使用，不会复制或再次写入存储。
-- CPAMC 当前的浏览器端存储是可逆混淆，不是安全边界。同源页面、浏览器扩展和同机恶意软件均属于信任边界。
-- 页面只读同步 CPAMC 的主题，不再维护独立主题偏好。
-- 界面支持简体中文与英文：优先跟随 CPAMC 当前语言（嵌入页 `<html lang>`，其次 `cli-proxy-language` / `i18nextLng`），再按浏览器语言选择；其他语言默认显示英文，切换语言时页面实时更新。
-- 页面响应使用随机 nonce CSP、`frame-ancestors 'self'`、`X-Frame-Options: SAMEORIGIN`、`form-action 'none'` 和 `Cache-Control: no-store`。
-- 应使用 HTTPS、限制 Management API 的网络可达范围，并只在可信浏览器和设备中打开 UI。
-- 页面壳不包含 Key 或策略数据；所有 Management API 数据请求都受 CPA Management Key 保护。
-
-## 预热路由快捷规则
-
-选择器的“通配符”分组提供 `warmup-*/*`，用于对任意账号的预热路由统一设置 allow/deny。它匹配 `warmup-<account>/<model>` 形式的完整模型 ID，并沿用现有 wildcard 语义：忽略大小写，`*` 可跨 `/`。
-
-`warmup-*/*` 与 `gpt-*` 等模型族规则用途不同：后者匹配裸模型 ID，不自动匹配 `warmup-codex-…/gpt-…`。规则选择是“任一命中”，因此不能把 `warmup-*/*` 与 `gpt-*` 同时放进 allow 来表示“预热路由中的 GPT”。按 Key 拒绝 `warmup-*/*` 不影响专用预热 Key 的精确 allow；如设为全局禁用，预热 Key 同样会被拒绝。该规则控制实际请求，不改变 CPA 目录；目录展示仍由“显示预热模型”开关和宿主的目录响应决定。
-
-## 全局禁用（0.4.0）
-
-在概览页编辑“全局禁用”，支持精确名称、通配符和自定义规则。保存前显示影响范围；所有现有和新增 Key、所有上游凭证均受约束，按 Key 的 allow 不能覆盖。Key 页面显示有效的全局限制。侧栏显示真实插件版本，配置修订号保留在概览详情。
+### 3.2 策略文件 (`config.toml`) 结构示例
 
 ```toml
 version = 3
-global_deny_models = ["gemini-3.1-flash-lite"]
-policies = []
-```
 
-判定顺序：策略有效性 → 全局禁用 → Key 禁用 → Key 非空白名单 → 默认允许。全局检查 CPA 提供的原请求名和执行模型名，同时识别 CPA 的 `(high)` / `(8192)` 等推理后缀；不对任意 `vendor/model` 擅自剥离前缀。全局命中返回 403，错误 `reason=global_deny`。原按 Key 完整名称匹配语义不变。
+# 全局禁用清单：对所有 Key 和所有凭据生效
+global_deny_models = [
+  "gemini-3.1-flash-lite",
+  "*-deprecated"
+]
 
-v2 文件可直接读取且不主动改写；首次使用新版页面保存后升级到 v3。v3 管理写入必须显式携带 `global_deny_models`（清空用 `[]`）；旧 v2 客户端不能覆盖已启用的 v3。回滚必须恢复成对的旧动态库和 v2 策略文件。全局规则与 Key 规则共用 revision / If-Match 和原子持久化。
-
-此版本实现请求拒绝，**不筛选 CPA 模型目录**；列表可见不代表允许调用。OAuth 凭证的额度/账号限制继续保留。`warmup-*/*` 若全局禁用，专用预热 Key 也被拒绝。
-
-已在 CPA v8.0.33 镜像与假上游隔离联调：Chat Completions、Responses、Messages、Gemini 入口，流式/非流式、别名、预热前缀、推理后缀、无 Key 策略及 Key allow。WebSocket 拒绝请求时，宿主可能直接关闭连接；未向假上游发出请求，不承诺该宿主返回结构化 WebSocket 错误。
-
-```sh
-python3 tests/integration.py --library dist/key-model-access.so --image <CPA-image-id>
-```
-
-该 Linux 测试需 Docker、Python 3 和 websocket-client，使用随机回环端口、假凭据与 `--rm` 容器，退出自动清理，不挂载生产配置。
-
-## 兼容的策略 schema v2
-
-v2 文档顶层只有 `version` 和 `policies`。每条策略只有：
-
-- `caller_scope`：CPA 为已有 API Key 派生的 64 位十六进制 scope；应由 Web UI 生成并关联，不是原始 Key，也不是旧版 `key_sha256`。
-- `allow_models`：允许模式数组。
-- `deny_models`：拒绝模式数组。
-
-推荐不要手工猜测或复用旧哈希。使用 UI 获取 CPA 当前 Key 并生成正确 scope。
-
-### YAML
-
-参见 [`policies.example.yaml`](./policies.example.yaml)：
-
-```yaml
-version: 2
-policies:
-  - caller_scope: "f7291f3315e5ab0d3c02015a081879d748693f231d8370b43f38f57be991734a"
-    allow_models:
-      - "gpt-5*"
-      - "claude-sonnet-*"
-    deny_models:
-      - "*-preview"
-```
-
-### TOML
-
-默认生成的 `config.toml` 使用同一 schema：
-
-```toml
-version = 2
-
+# 按 Key 细粒度策略
 [[policies]]
 caller_scope = "f7291f3315e5ab0d3c02015a081879d748693f231d8370b43f38f57be991734a"
-allow_models = ["gpt-5*", "claude-sonnet-*"]
-deny_models = ["*-preview"]
+allow_models = [
+  "gpt-5*",
+  "claude-sonnet-*"
+]
+deny_models = [
+  "*-preview",
+  "warmup-*/*"
+]
 ```
 
-### JSON
+---
 
-Management API 的 PUT 请求体使用同一 schema：
+## 4. 管理接口 (Management API)
 
-```json
-{
-  "version": 2,
-  "policies": [
-    {
-      "caller_scope": "f7291f3315e5ab0d3c02015a081879d748693f231d8370b43f38f57be991734a",
-      "allow_models": ["gpt-5*", "claude-sonnet-*"],
-      "deny_models": ["*-preview"]
-    }
-  ]
-}
-```
+所有管理端点均受 CPA Management Key 保护：
 
-匹配语义：
-
-1. 以下 Key 判定均以未命中全局禁用为前提；Key 没有对应策略时不额外限制。
-2. 命中任意 Key `deny_models`：拒绝，优先于 Key allow。
-3. `allow_models` 非空：只有命中 allow 且未命中 deny 才允许。
-4. `allow_models` 为空：允许所有未命中 deny 的模型。
-5. allow 和 deny 都为空等同于允许全部；UI 通常不会为这种 Key 写入策略。
-
-YAML、TOML 和 JSON 都严格拒绝未知字段、重复 `caller_scope` 和非 64 位十六进制 scope。旧的 `key`、`key_sha256`、`id`、`enabled` 等身份字段不会被接受。
-
-## Management API
-
-插件路由由 CPA Management Key 保护：
-
-| 方法 | 路径 | 用途 |
+| 方法 | 路径 | 功能说明 |
 |---|---|---|
-| `GET` | `/v0/management/plugins/key-model-access/status` | 查看版本、策略来源、持久化和 fail-closed 状态；不返回 scope |
-| `GET` | `/v0/management/plugins/key-model-access/policies` | 获取完整策略、全局禁用和 revision |
-| `PUT` | `/v0/management/plugins/key-model-access/policies` | 用 JSON 原子替换全部策略 |
-| `POST` | `/v0/management/plugins/key-model-access/reload` | 从已配置的 `policy_file` 重载 |
-| `POST` | `/v0/management/plugins/key-model-access/initialize-storage` | 在给定的 CPA 插件根目录创建或校验默认 `config.toml` |
+| `GET` | `/v0/management/plugins/key-model-access/status` | 查看插件运行状态、策略来源与健康检查 |
+| `GET` | `/v0/management/plugins/key-model-access/policies` | 获取当前完整策略文件内容（含 ETag） |
+| `PUT` | `/v0/management/plugins/key-model-access/policies` | 提交并原子更新策略文件（支持 `If-Match` 并发保护） |
+| `POST` | `/v0/management/plugins/key-model-access/reload` | 从磁盘强制重载策略配置 |
+| `GET` | `/v0/resource/plugins/key-model-access/settings` | Web UI 静态管理面板入口 |
 
-UI 还会调用 CPA 自带的 `GET /v0/management/plugins` 获取实际插件目录，并通过 `PATCH /v0/management/plugins/key-model-access/config` 仅写入 `policy_file`。它会只读调用 `GET /v0/management/api-keys`；该接口会向已授权管理客户端返回 CPA Key，请勿记录或转发响应。
+---
 
-准备变量并查询状态：
+## 5. 构建与安装
 
-```bash
-export CPA_URL=http://127.0.0.1:8317
-export CPA_MANAGEMENT_KEY='your-management-key'
+### 5.1 编译要求
+- Go 1.24+
+- 支持 CGO 的 C 编译器（GCC / Clang）
+- `CGO_ENABLED=1`
 
-curl -sS \
-  -H "Authorization: Bearer $CPA_MANAGEMENT_KEY" \
-  "$CPA_URL/v0/management/plugins/key-model-access/status"
-```
-
-读取策略并保留响应中的 `ETag: "rev-N"`：
+### 5.2 常用构建命令
 
 ```bash
-curl -i \
-  -H "Authorization: Bearer $CPA_MANAGEMENT_KEY" \
-  "$CPA_URL/v0/management/plugins/key-model-access/policies"
+# 运行单元测试
+make test
+
+# 构建当前平台动态库
+make build
+
+# 打包发布压缩包与校验码
+make package
 ```
 
-整体替换策略：
+### 5.3 插件安装
 
-```bash
-curl -sS -X PUT \
-  -H "Authorization: Bearer $CPA_MANAGEMENT_KEY" \
-  -H 'Content-Type: application/json' \
-  -H 'If-Match: "rev-N"' \
-  "$CPA_URL/v0/management/plugins/key-model-access/policies" \
-  --data-binary @- <<'JSON'
-{
-  "version": 2,
-  "policies": [
-    {
-      "caller_scope": "f7291f3315e5ab0d3c02015a081879d748693f231d8370b43f38f57be991734a",
-      "allow_models": ["gpt-5*"],
-      "deny_models": ["*-preview"]
-    }
-  ]
-}
-JSON
-```
+将编译生成的动态库文件放入 CPA 的插件目录：
 
-`GET policies` 返回 revision 和 ETag。携带 `If-Match` 可避免覆盖并发修改；revision 不匹配时返回 `412`。为兼容调用方，当前后端仍接受不带 `If-Match` 的 PUT，但不推荐。
-
-配置 `policy_file` 后，PUT 会以 `0600` 权限原子持久化；Web UI 会在首次打开时自动完成默认配置。自动初始化失败或尚未打开 UI 时，未配置文件的 PUT 仍只更新内存。reload 在未配置文件时返回 `409`，文件无效时保留最后一个有效策略并报告错误。
-
-## 验证
-
-查看 CPA 已注册插件：
-
-```bash
-curl -sS \
-  -H "Authorization: Bearer $CPA_MANAGEMENT_KEY" \
-  "$CPA_URL/v0/management/plugins"
-```
-
-确认状态至少包含：
-
-```json
-{
-  "version": "0.1.3",
-  "schema_version": 2,
-  "auth_mode": "cpa_builtin_api_keys",
-  "identity_source": "Metadata.caller_scope",
-  "unconfigured_key_action": "allow",
-  "fail_closed": false
-}
-```
-
-使用同一个 CPA 顶层 Key 测试允许和拒绝模型：
-
-```bash
-# 应允许
-curl -i "$CPA_URL/v1/chat/completions" \
-  -H 'Authorization: Bearer your-existing-cpa-key' \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"gpt-5","messages":[{"role":"user","content":"hi"}]}'
-
-# 若策略只 allow gpt-5*，应由插件返回结构化 403，且请求不应到达上游
-curl -i "$CPA_URL/v1/chat/completions" \
-  -H 'Authorization: Bearer your-existing-cpa-key' \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"claude-sonnet","messages":[{"role":"user","content":"hi"}]}'
-
-# 不在 CPA 顶层 api-keys 中的 Key 应由 CPA 认证层拒绝，而不是由插件管理
-curl -i "$CPA_URL/v1/chat/completions" \
-  -H 'Authorization: Bearer unknown-key' \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"gpt-5","messages":[{"role":"user","content":"hi"}]}'
-```
-
-本地质量检查：
-
-```bash
-gofmt -w types.go
-go test ./...
-go vet ./...
-make test-web # Node.js 18+，无需安装 npm 依赖
-git diff --check
-```
-
-## 当前限制
-
-CPA 的 RequestInterceptor 目前没有完整覆盖以下路径或流程：
-
-- `/v1/models`
-- `alpha/search`
-- Codex Live（包括相关实时/sideband 流程）
-
-因此不要依赖本插件对这些功能实施完整的 per-Key 模型隔离。`/v1/models` 可能返回 CPA 全局模型列表。对于确实进入 RequestInterceptor 的请求，已配置策略的 Key 若缺少模型名会 fail closed；未配置策略的 Key 仍按默认规则允许。若上述未覆盖入口必须受限，应在 CPA/上游 provider 配置、反向代理或网络层禁用或限制，直到 CPA 提供完整 hook 覆盖。
-
-此外：
-
-- 本插件只约束进入 RequestInterceptor 且带可识别模型名的请求，不过滤 CPA 的全局模型目录。
-- 有策略存在但 CPA 未提供 `caller_scope` 时，已覆盖请求会 fail closed；完全空策略时，没有 scope 的请求不会由插件拒绝，认证仍由 CPA 负责。
-- 首次加载无效配置、旧 v1 文件或不存在的 `policy_file` 会使插件策略 fail closed；后续无效热更新会保留最后一个有效快照。
-- 策略变化只影响后续请求，不会中断已经在上游执行的请求。
-
-## 安全说明
-
-- 原生插件与 CPA 同进程运行，只安装可信构建产物。
-- 原始 API Key 只应存在于 CPA 顶层 `api-keys`；不要放进插件配置、策略文件或 PUT 请求。
-- `caller_scope` 是稳定的伪名标识，仍应视为敏感管理数据；不要公开策略响应和文件。
-- Management API 响应设置 `Cache-Control: no-store`；应限制 Management Key 权限并定期轮换。
-- 默认策略位于 `<plugins.dir>/key-model-access/config.toml`；应限制插件目录权限并将该插件专属子目录纳入安全备份。显式 `policy_file` 同样应仅允许 CPA 进程用户访问。
-- 无策略默认允许全部。新增 CPA Key 后，应及时在 UI 中刷新并配置限制；需要默认拒绝的新 Key 接入流程时，应在外层自动化或网络边界中实现。
-
-## 构建与发布产物
-
-GitHub Actions 工作流 [`.github/workflows/build.yml`](./.github/workflows/build.yml) 负责测试、构建和发布格式。版本 0.1.3 的压缩包命名为：
-
-```text
-key-model-access_0.1.3_<goos>_<goarch>.zip
-checksums.txt
-```
-
-本地生成当前平台压缩包和聚合校验文件：
-
-```bash
-make checksums VERSION=0.2.0
-```
-
-维护者创建 0.2.0 发布标签的示例：
-
-```bash
-git tag -a v0.2.0 -m "Release v0.2.0"
-git push origin v0.2.0
-```
-
-## 官方资料
-
-- https://help.router-for.me/cn/plugin/development
-- https://help.router-for.me/cn/plugin/request-interceptor
-- https://help.router-for.me/cn/plugin/management-api
-- https://github.com/router-for-me/CLIProxyAPI/tree/main/examples/plugin
+- Linux / FreeBSD: `<CPA>/plugins/<GOOS>/<GOARCH>/key-model-access.so`
+- macOS: `<CPA>/plugins/<GOOS>/<GOARCH>/key-model-access.dylib`
+- Windows: `<CPA>/plugins/<GOOS>/<GOARCH>/key-model-access.dll`
