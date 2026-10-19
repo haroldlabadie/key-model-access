@@ -1,0 +1,48 @@
+diff --git a/sdk/api/handlers/handlers_interceptors.go b/sdk/api/handlers/handlers_interceptors.go
+index b7aa2a5..9e5104e 100644
+--- a/sdk/api/handlers/handlers_interceptors.go
++++ b/sdk/api/handlers/handlers_interceptors.go
+@@ -666,7 +666,11 @@ func (h *BaseAPIHandler) WriteModelListResponse(c *gin.Context, sourceFormat str
+ 				ctx = reqCtx
+ 			}
+ 		}
+-		lifecycle = h.newRequestLifecycleTracker(ctx, sourceFormat, "", "", false, nil, "")
++		metadata := map[string]any{"model_catalog": true}
++		if scope := requestCallerScope(c); scope != "" {
++			metadata["caller_scope"] = scope
++		}
++		lifecycle = h.newRequestLifecycleTracker(ctx, sourceFormat, "", "", false, metadata, "")
+ 		resp := interceptResponse(ctx, host, pluginapi.ResponseInterceptRequest{
+ 			RequestID:       lifecycle.requestID(),
+ 			SourceFormat:    sourceFormat,
+@@ -679,7 +683,7 @@ func (h *BaseAPIHandler) WriteModelListResponse(c *gin.Context, sourceFormat str
+ 			RequestBody:     nil,
+ 			Body:            cloneBytes(body),
+ 			StatusCode:      http.StatusOK,
+-			Metadata:        nil,
++			Metadata:        metadata,
+ 		}, "")
+ 		if len(resp.Body) > 0 {
+ 			body = cloneBytes(resp.Body)
+diff --git a/sdk/api/handlers/handlers_interceptors_test.go b/sdk/api/handlers/handlers_interceptors_test.go
+index 2eea023..a21a060 100644
+--- a/sdk/api/handlers/handlers_interceptors_test.go
++++ b/sdk/api/handlers/handlers_interceptors_test.go
+@@ -1662,6 +1662,7 @@ func TestWriteModelListResponse_ExposesResponseToPluginInterceptors(t *testing.T
+ 	ctx, _ := gin.CreateTestContext(rec)
+ 	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+ 	ctx.Request.Header.Set("Authorization", "Bearer test-token")
++	ctx.Set("userApiKey", "authenticated-key")
+ 
+ 	payload := gin.H{"object": "list", "data": []map[string]any{{"id": "original-model"}}}
+ 	handler.WriteModelListResponse(ctx, "openai", payload)
+@@ -1672,6 +1673,9 @@ func TestWriteModelListResponse_ExposesResponseToPluginInterceptors(t *testing.T
+ 	if !intercepted {
+ 		t.Fatal("InterceptResponse was not called")
+ 	}
++	if capturedReq.Metadata["caller_scope"] != requestCallerScope(ctx) || capturedReq.Metadata["model_catalog"] != true {
++		t.Fatalf("missing authenticated catalog metadata: %#v", capturedReq.Metadata)
++	}
+ 	if capturedReq.SourceFormat != "openai" {
+ 		t.Fatalf("SourceFormat = %q, want openai", capturedReq.SourceFormat)
+ 	}

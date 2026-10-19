@@ -1,0 +1,3 @@
+
+# Unified diffs intentionally contain context markers before tabs.
+*.patch -whitespace

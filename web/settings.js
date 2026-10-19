@@ -663,6 +663,9 @@
       let payload = null;
       try { payload = await response.json(); } catch (_) { payload = null; }
       if (!response.ok) throw new Error(t("error.catalogHttp", { status: response.status }));
+      // Populate the host catalog cache with the authenticated request above,
+      // then read complete candidates over the management-only route.
+      try { const complete = await api("/v0/management/plugins/key-model-access/catalog", {method: "GET"}); if (Array.isArray(complete?.data)) payload = complete; } catch (_) { /* older plugin: retain its original catalog */ }
       const source = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.models) ? payload.models : [];
       const seen = new Set();
       const models = source.map((item) => {

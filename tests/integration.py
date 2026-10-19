@@ -44,7 +44,7 @@ sock.close()
 (root/'auths').mkdir()
 shutil.copy2(args.library, root/'plugins/key-model-access.so')
 scope = hashlib.sha256(b'cli-proxy-api:caller-scope:v1\0test-client-a').hexdigest()
-policy = {'version':3,'global_deny_models':['blocked'], 'policies':[{'caller_scope':scope,'allow_models':['*'],'deny_models':[]}]}
+policy = {'version':3,'global_deny_models':['blocked'], 'policies':[{'caller_scope':scope,'allow_models':['*'],'deny_models':['warmup-*/*']}]}
 (root/'policy.json').write_text(json.dumps(policy))
 provider = {'name':'fake','base-url':f'http://127.0.0.1:{server.server_port}/v1','keys':[{'api-key':'fake-upstream'}],'models':[{'name':'blocked','alias':'public-blocked'},{'name':'allowed','alias':'allowed'}]}
 warmup = dict(provider, name='fake-warmup', prefix='warmup-test')
@@ -68,10 +68,37 @@ try:
         except OSError: pass
         time.sleep(.5)
     else: raise AssertionError('isolated CPA did not start')
-    assert json.loads(body)['version']=='0.4.0', body
+    assert json.loads(body)['version']=='0.5.0', body
     code, body = call('/v1/chat/completions',{'model':'allowed','messages':[{'role':'user','content':'hi'}]})
     assert code==200,(code,body)
     print('PASS allowed model reaches fake upstream')
+    code,body=call('/v1/models')
+    ids={m['id'] for m in json.loads(body)['data']}
+    assert 'allowed' in ids and not any(m.startswith('warmup-') for m in ids),ids
+    code,body=call('/v1/models',key='test-client-b')
+    assert any(m['id'].startswith('warmup-') for m in json.loads(body)['data'])
+    code,body=call('/v1/models?client_version=0.162.0')
+    assert not any(m['slug'].startswith('warmup-') for m in json.loads(body)['models'])
+    code,body=call('/v0/management/plugins/key-model-access/catalog',key='test-management-secret')
+    assert any(m['id'].startswith('warmup-') for m in json.loads(body)['data'])
+    code,body=call('/v0/management/plugins/key-model-access/catalog')
+    assert code in (401,403)
+    code,body=call('/v1/models/warmup-test/allowed')
+    assert code==404,(code,body)
+    for path,headers in [('/v1/models?key=test-client-a',{}),('/v1/models?auth_token=test-client-a',{'Authorization':'Bearer invalid-token'}),('/v1/models',{'Authorization':'Bearer invalid-token','X-Api-Key':'test-client-a'})]:
+        response=urllib.request.urlopen(urllib.request.Request(f'http://127.0.0.1:{port}'+path,headers=headers),timeout=10)
+        assert not any(m['id'].startswith('warmup-') for m in json.load(response)['data'])
+    for path,headers,field,id_field in [('/v1/models',{'Authorization':'Bearer test-client-a','Anthropic-Version':'2023-06-01'},'data','id'),('/v1beta/models',{'X-Goog-Api-Key':'test-client-a'},'models','name')]:
+        response=urllib.request.urlopen(urllib.request.Request(f'http://127.0.0.1:{port}'+path,headers=headers),timeout=10)
+        assert not any('warmup-' in m[id_field] for m in json.load(response)[field])
+    updated=dict(policy,policies=[dict(policy['policies'][0],deny_models=[])])
+    code,body=call('/v0/management/plugins/key-model-access/policies',updated,key='test-management-secret',method='PUT')
+    assert code==200,(code,body)
+    code,body=call('/v1/models')
+    assert any(m['id'].startswith('warmup-') for m in json.loads(body)['data'])
+    code,body=call('/v0/management/plugins/key-model-access/policies',policy,key='test-management-secret',method='PUT')
+    assert code==200,(code,body)
+    print('PASS caller-specific standard/Codex catalogs, management candidates, and forbidden model detail')
     cases=0
     for key in ['test-client-a','test-client-b']:
         for path in ['/v1/chat/completions','/v1/responses','/v1/messages','/v1beta/models/public-blocked:generateContent']:
@@ -81,7 +108,7 @@ try:
                     payload={'model':model,'messages':[{'role':'user','content':'hi'}],'input':'hi','max_tokens':1,'stream':stream}
                     before=Upstream.calls
                     code, body=call(path,payload,key)
-                    assert code==403 and 'global_deny' in body,(path,model,stream,code,body[:300])
+                    assert code==403 and ('global_deny' in body or (key=='test-client-a' and model.startswith('warmup-'))),(path,model,stream,code,body[:300])
                     assert Upstream.calls==before,'denied request reached upstream'
                     cases+=1
     print(f'PASS {cases} HTTP denial cases; key allow cannot override, unconfigured key denied; zero upstream calls for denied requests')

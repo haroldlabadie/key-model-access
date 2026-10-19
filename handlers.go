@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	catalogPath           = "/v0/management/plugins/key-model-access/catalog"
 	policiesPath          = "/v0/management/plugins/key-model-access/policies"
 	statusPath            = "/v0/management/plugins/key-model-access/status"
 	reloadPath            = "/v0/management/plugins/key-model-access/reload"
@@ -97,6 +98,7 @@ func terminatedPolicyResponse(status int, message, model string) ([]byte, error)
 func managementRegistration() managementRegistrationResponse {
 	return managementRegistrationResponse{
 		Routes: []managementRoute{
+			{Method: http.MethodGet, Path: catalogPath, Description: "Unfiltered model candidates from the latest standard catalog; management authentication required."},
 			{Method: http.MethodGet, Path: statusPath, Description: "Show key-model-access status without exposing API keys or caller scopes."},
 			{Method: http.MethodGet, Path: policiesPath, Description: "List caller-scope model policies."},
 			{Method: http.MethodPut, Path: policiesPath, Description: "Replace all caller-scope model policies."},
@@ -121,6 +123,8 @@ func handleManagement(raw []byte) ([]byte, error) {
 	switch {
 	case (method == http.MethodGet || method == http.MethodHead) && path == settingsResourcePath:
 		return settingsPage()
+	case method == http.MethodGet && path == catalogPath:
+		return managementCatalog()
 	case method == http.MethodGet && path == statusPath:
 		return managementStatus()
 	case method == http.MethodGet && path == policiesPath:

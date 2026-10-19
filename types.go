@@ -14,13 +14,14 @@ const (
 	pluginID                       = "key-model-access"
 )
 
-var pluginVersion = "0.4.1"
+var pluginVersion = "0.5.0"
 
 const (
 	methodPluginRegister         = "plugin.register"
 	methodPluginReconfigure      = "plugin.reconfigure"
 	methodRequestInterceptBefore = "request.intercept_before"
 	methodRequestInterceptAfter  = "request.intercept_after"
+	methodResponseInterceptAfter = "response.intercept_after"
 	methodManagementRegister     = "management.register"
 	methodManagementHandle       = "management.handle"
 )
@@ -66,8 +67,9 @@ type configField struct {
 }
 
 type capabilities struct {
-	RequestInterceptor bool `json:"request_interceptor"`
-	ManagementAPI      bool `json:"management_api"`
+	RequestInterceptor  bool `json:"request_interceptor"`
+	ResponseInterceptor bool `json:"response_interceptor"`
+	ManagementAPI       bool `json:"management_api"`
 }
 
 type requestInterceptRequest struct {
@@ -122,4 +124,20 @@ type managementResponse struct {
 	StatusCode int         `json:"StatusCode"`
 	Headers    http.Header `json:"Headers,omitempty"`
 	Body       []byte      `json:"Body,omitempty"`
+}
+
+type responseInterceptRequest struct {
+	SourceFormat   string         `json:"SourceFormat"`
+	Model          string         `json:"Model"`
+	RequestedModel string         `json:"RequestedModel"`
+	Stream         bool           `json:"Stream"`
+	RequestHeaders http.Header    `json:"RequestHeaders"`
+	Body           []byte         `json:"Body"`
+	StatusCode     int            `json:"StatusCode"`
+	Metadata       map[string]any `json:"Metadata"`
+}
+type responseInterceptResponse struct {
+	Body         []byte      `json:"Body,omitempty"`
+	Headers      http.Header `json:"Headers,omitempty"`
+	ClearHeaders []string    `json:"ClearHeaders,omitempty"`
 }

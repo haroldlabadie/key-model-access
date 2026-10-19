@@ -251,3 +251,18 @@ test('global deny: overview editor, per-key notice, and actual plugin version re
  assert.match(elements.get('#healthBadge').innerHTML,/v0.4.0/);
  assert.doesNotMatch(elements.get('#healthBadge').innerHTML,/rev-/);
 });
+const testCatalogName = 'management catalog retains denied candidates for rule recovery';
+test(testCatalogName, async () => {
+  const calls = [];
+  const helpers = load((path, options) => {
+    calls.push(path);
+    if (path === '/v0/management/api-keys') return { 'api-keys': ['test-catalog-key'] };
+    if (path === '/v0/management/api-key-aliases') return {};
+    if (path === '/v1/models') return { data: [{ id: 'allowed' }] };
+    if (path === '/v0/management/plugins/key-model-access/catalog') return { data: [{ id: 'allowed' }, { id: 'warmup-test/allowed' }] };
+    throw new Error(path);
+  });
+  const result = await helpers.fetchCurrentKeys({ includeCatalog: true });
+  assert.equal(JSON.stringify(result.catalog.models.map(m => m.id)), JSON.stringify(['allowed', 'warmup-test/allowed']));
+  assert.ok(calls.indexOf('/v1/models') < calls.indexOf('/v0/management/plugins/key-model-access/catalog'));
+});

@@ -90,6 +90,9 @@ func cliproxyPluginFree(ptr unsafe.Pointer, _ C.size_t) {
 //export cliproxyPluginShutdown
 func cliproxyPluginShutdown() {
 	globalState.clear()
+	catalogCandidates.Lock()
+	catalogCandidates.Models = nil
+	catalogCandidates.Unlock()
 }
 
 func handleMethod(method string, request []byte) ([]byte, error) {
@@ -101,6 +104,8 @@ func handleMethod(method string, request []byte) ([]byte, error) {
 		return okEnvelope(pluginRegistration())
 	case methodRequestInterceptBefore, methodRequestInterceptAfter:
 		return interceptRequest(request)
+	case methodResponseInterceptAfter:
+		return filterCatalog(request)
 	case methodManagementRegister:
 		return okEnvelope(managementRegistration())
 	case methodManagementHandle:
@@ -125,14 +130,16 @@ func pluginRegistration() registration {
 			GitHubRepository: "https://github.com/haroldlabadie/key-model-access",
 			Logo:             "",
 			ConfigFields: []configField{
-				{Name: "policy_file", Type: "string", Description: "Optional strict YAML or TOML v2 policy document. The Web UI initializes a default plugin-owned config.toml when omitted."},
-				{Name: "version", Type: "number", Description: "Inline policy schema version. Only version 2 is supported."},
+				{Name: "policy_file", Type: "string", Description: "Optional strict YAML or TOML v2/v3 policy document. The Web UI initializes a default plugin-owned config.toml when omitted."},
+				{Name: "version", Type: "number", Description: "Inline policy schema version. Versions 2 and 3 are supported."},
+				{Name: "global_deny_models", Type: "array", Description: "Globally denied model patterns, applied before Key policies (version 3)."},
 				{Name: "policies", Type: "array", Description: "Per-caller-scope allow_models and deny_models policies. caller_scope is derived by CPA's built-in API-key authentication."},
 			},
 		},
 		Capabilities: capabilities{
-			RequestInterceptor: hostSchema >= minimumRPCSchemaVersion,
-			ManagementAPI:      true,
+			RequestInterceptor:  hostSchema >= minimumRPCSchemaVersion,
+			ResponseInterceptor: hostSchema >= minimumRPCSchemaVersion,
+			ManagementAPI:       true,
 		},
 	}
 }

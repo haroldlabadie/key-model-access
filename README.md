@@ -1,6 +1,6 @@
 # CPA Key Model Access 插件
 
-CLIProxyAPI（CPA）原生动态库插件。CPA 继续使用顶层 `api-keys` 完成下游认证；本插件只在 RequestInterceptor 中读取 CPA 提供的 `Metadata.caller_scope`，为**已经存在的 CPA API Key**执行模型 allow/deny。
+CLIProxyAPI（CPA）原生动态库插件。CPA 继续使用顶层 `api-keys` 完成下游认证；本插件在请求与模型目录响应中读取 CPA 提供的 `Metadata.caller_scope`，为**已经存在的 CPA API Key**执行模型 allow/deny。
 
 > `0.1.x` 相对 `0.0.2` 是 breaking pre-1 minor。v1 策略不兼容，从 0.0.2 升级前必须完成下文的迁移步骤。
 
@@ -15,6 +15,16 @@ CLIProxyAPI（CPA）原生动态库插件。CPA 继续使用顶层 `api-keys` �
 - 模型名优先取 CPA 的 `RequestedModel`，为空时取 `Model`。
 
 本插件不是认证层。未知或无效 Key 是否可用，由 CPA 顶层 `api-keys` 决定；不要把 Key 只写在插件配置中。
+
+## 0.5.0：按调用 Key 过滤目录
+
+普通客户端的模型列表按全局禁用及当前 Key 的 allow/deny 过滤；覆盖 OpenAI `data/id`、Codex `models/slug`、Claude 目录与 Gemini `models/name`。保留各条目的完整元数据；设置保存后下一次获取目录立即生效。客户端自己保留的旧列表需要重新获取。
+
+管理页面通过受管理认证保护的 `/v0/management/plugins/key-model-access/catalog` 获取过滤前的 OpenAI 候选目录，避免禁用后无法重新选择；缓存由普通目录请求刷新，不保存 Key。Claude/Codex 目录不会覆盖该候选快照。
+
+**宿主要求**：目录 hook 必须传递 CPA 认证后的 `Metadata.caller_scope`。上游 v8.0.33 没有传递此字段，须先应用 [宿主补丁](host-patches/cpa-v8.0.33-catalog-identity.patch)，运行补丁包含的宿主测试，再与 0.5.0 一起部署。缺失身份时返回空目录，绝不从请求头猜测身份。补丁只补充目录 hook 的认证身份，不改变认证流程。
+
+目录按公开模型 ID 判定；保留的 `warmup-账号/模型` 还检查全局规则中的裸模型。其他别名的隐藏依据公开 ID；若全局规则只匹配不可见的上游原名，别名可能仍显示，但实际调用仍经过最终执行名校验并被拒绝。目录展示不能替代请求授权。
 
 ## 兼容性
 
