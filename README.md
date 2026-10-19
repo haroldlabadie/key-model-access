@@ -155,7 +155,7 @@ http://<CPA_HOST>:<CPA_PORT>/v0/resource/plugins/key-model-access/settings
 3. 在浏览器内按 CPA 的规则计算对应 `caller_scope`；
 4. 临时使用第一个 CPA API Key 读取 `GET /v1/models`，生成可搜索、多选的模型目录；
 5. 读取插件 v2 策略并按 scope 关联；
-6. 通过选择器编辑、保存 `allow_models` 和 `deny_models`。选择器提供精确模型、全部模型 `*`、当前目录可识别的常用模型家族通配符，以及独立“内部路由”分组中的 `warmup-*/*`；已有的其他自定义通配符会继续保留并显示其目录匹配结果。`warmup-*/*` 始终可选，即使目录暂未返回预热路由。
+6. 通过选择器编辑、保存 `allow_models` 和 `deny_models`。选择器提供精确模型、全部模型 `*`、当前目录可识别的常用模型家族通配符，以及预热模型名称通配符 `warmup-*/*`；这些规则统一归入“通配符”，与“具体模型”列表分开；已有的其他自定义通配符会继续保留并显示其目录匹配结果。`warmup-*/*` 始终可选，即使目录暂未返回预热路由。
 
 UI 不创建、修改或删除 CPA Key，也不会向 `/v0/management/api-keys` 发出写请求。Key 生命周期仍应通过 CPA 配置或 CPA 自身管理能力完成。UI 会在策略保存前后核对 CPA Key 集合：保存前发现变化会中止并要求刷新；保存后发现变化会立即警告新 Key 当前默认允许全部。两次请求之间仍无法形成事务，因此 Key 变更和策略保存应由运维流程串行化。不再对应当前 Key 的旧 scope 会标记为失效策略，并在保存时保留，避免静默删除。
 
@@ -172,7 +172,7 @@ UI 不创建、修改或删除 CPA Key，也不会向 `/v0/management/api-keys` 
 
 ## 预热路由快捷规则
 
-选择器的“内部路由”分组提供 `warmup-*/*`，用于对任意账号的预热路由统一设置 allow/deny。它匹配 `warmup-<account>/<model>` 形式的完整模型 ID，并沿用现有 wildcard 语义：忽略大小写，`*` 可跨 `/`。
+选择器的“通配符”分组提供 `warmup-*/*`，用于对任意账号的预热路由统一设置 allow/deny。它匹配 `warmup-<account>/<model>` 形式的完整模型 ID，并沿用现有 wildcard 语义：忽略大小写，`*` 可跨 `/`。
 
 `warmup-*/*` 与 `gpt-*` 等模型族规则用途不同：后者匹配裸模型 ID，不自动匹配 `warmup-codex-…/gpt-…`。规则选择是“任一命中”，因此不能把 `warmup-*/*` 与 `gpt-*` 同时放进 allow 来表示“预热路由中的 GPT”。按 Key 拒绝 `warmup-*/*` 不影响专用预热 Key 的精确 allow；如设为全局禁用，预热 Key 同样会被拒绝。该规则控制实际请求，不改变 CPA 目录；目录展示仍由“显示预热模型”开关和宿主的目录响应决定。
 
