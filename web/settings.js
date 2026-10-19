@@ -69,7 +69,7 @@
       "list.separator": "，",
       "health.connecting": "正在连接",
       "health.warning": "策略警告",
-      "health.ok": "运行正常 · rev-{revision}",
+      "health.ok": "运行正常 · v{version}",
       "health.disconnected": "未连接",
       "action.reload": "从策略文件重载",
       "action.reloadUnavailable": "未配置 policy_file，无法从文件重载",
@@ -86,7 +86,7 @@
       "badge.allowRules": "允许规则",
       "badge.denyRules": "拒绝规则",
       "overview.title": "概览",
-      "overview.subtitle": "为 CPA 现有 API Key 配置可访问的模型。Key 的创建与删除由 CPA 管理；未配置规则的 Key 默认允许全部模型。",
+      "overview.subtitle": "为 CPA 现有 API Key 配置可访问的模型。Key 的创建与删除由 CPA 管理；未配置 Key 规则时，仍须遵守全局禁用。",
       "overview.lastErrorTitle": "最近一次配置存在问题",
       "overview.lastError": "{error}。当前仍在使用最后一个有效策略。",
       "overview.staleTitle": "{count} 条失效策略",
@@ -101,7 +101,7 @@
       "overview.unconfiguredKeys": "未配置 Key",
       "overview.allowAll": "允许全部模型",
       "overview.policyCount": "后端策略数",
-      "overview.revision": "策略版本",
+      "overview.revision": "配置修订号",
       "overview.source": "策略来源",
       "overview.updatedAt": "最后更新",
       "overview.builtinAuth": "CPA 内置 API Keys",
@@ -132,7 +132,16 @@
       "picker.allAllowHint": "* · 自动包含未来新增模型",
       "picker.presetHint": "当前匹配 {count} 个模型，并覆盖未来同前缀模型",
       "picker.warmupPresetHint": "当前匹配 {count} 个预热模型名称，并自动覆盖新增名称",
-      "picker.wildcardGroup": "通配符",
+      "global.confirm": "将全局禁用规则保存为：{rules}。对全部 {keys} 个现有 Key 及未来新增 Key 生效，包括预热 Key；允许列表无法覆盖。确认保存？",
+"global.title": "全局禁用",
+"global.description": "对所有 Key 和上游账号生效，包括预热 Key；Key 允许列表无法覆盖。",
+"global.none": "未设置全局禁用",
+"global.active": "全局禁用：{rules}。命中时优先拒绝，Key 允许列表无法覆盖。",
+"global.impact": "当前目录匹配 {models} 个名称；作用于全部 {keys} 个现有 Key 及未来新增 Key，匹配的预热请求也会被拒绝。",
+"global.custom": "输入模型名称或通配符",
+"global.add": "添加规则",
+"overview.version": "插件版本",
+"picker.wildcardGroup": "通配符",
       "picker.modelGroup": "具体模型",
       "picker.matchedBy": "由 {rule} 通配符匹配",
       "picker.searchPlaceholder": "搜索模型…",
@@ -148,7 +157,7 @@
       "picker.reload": "重新加载",
       "picker.loading": "加载中",
       "picker.loaded": "已加载 {count} 个模型",
-      "error.invalidDocument": "插件返回了无效的 v2 策略文档。",
+      "error.invalidDocument": "插件返回了无效的策略文档。",
       "error.policyInvalid": "策略 {index} 格式无效。",
       "error.policyScopeInvalid": "策略 {index} 的 caller scope 无效。",
       "error.policyScopeDuplicate": "策略 {index} 的 caller scope 重复。",
@@ -213,7 +222,7 @@
       "list.separator": ", ",
       "health.connecting": "Connecting",
       "health.warning": "Policy warning",
-      "health.ok": "Healthy · rev-{revision}",
+      "health.ok": "Healthy · v{version}",
       "health.disconnected": "Disconnected",
       "action.reload": "Reload from policy file",
       "action.reloadUnavailable": "policy_file is not configured; cannot reload from file",
@@ -230,7 +239,7 @@
       "badge.allowRules": "Allow rules",
       "badge.denyRules": "Deny rules",
       "overview.title": "Overview",
-      "overview.subtitle": "Configure which models each existing CPA API key can access. Keys are created and deleted in CPA; keys without rules can access all models by default.",
+      "overview.subtitle": "Configure which models each existing CPA API key can access. Keys are created and deleted in CPA; keys without individual rules still follow global deny rules.",
       "overview.lastErrorTitle": "The latest configuration has a problem",
       "overview.lastError": "{error}. The last valid policy is still in effect.",
       "overview.staleTitle": ({ count }) => `${count} stale ${plural(count, "policy", "policies")}`,
@@ -276,7 +285,16 @@
       "picker.allAllowHint": "* · Automatically includes future models",
       "picker.presetHint": ({ count }) => `Matches ${count} ${plural(count, "model", "models")} now, plus future models with this prefix`,
       "picker.warmupPresetHint": ({ count }) => `Matches ${count} warmup model ${plural(count, "name", "names")} now, plus future names`,
-      "picker.wildcardGroup": "Wildcards",
+      "global.confirm": "Save global deny rules: {rules}. Applies to all {keys} existing keys and future keys, including warmup keys. Key allow rules cannot override this. Save?",
+"global.title": "Global deny",
+"global.description": "Applies to all keys and accounts, including warmup keys. Key allow rules cannot override it.",
+"global.none": "No global deny rules",
+"global.active": "Global deny: {rules}. Key allow rules cannot override it.",
+"global.impact": "Matches {models} catalog names across all {keys} existing keys and future keys. Matching warmup requests are denied too.",
+"global.custom": "Enter a model name or wildcard",
+"global.add": "Add rule",
+"overview.version": "Plugin version",
+"picker.wildcardGroup": "Wildcards",
       "picker.modelGroup": "Individual models",
       "picker.matchedBy": "Matched by wildcard {rule}",
       "picker.searchPlaceholder": "Search models…",
@@ -292,7 +310,7 @@
       "picker.reload": "Reload",
       "picker.loading": "Loading",
       "picker.loaded": ({ count }) => `Loaded ${count} ${plural(count, "model", "models")}`,
-      "error.invalidDocument": "The plugin returned an invalid v2 policy document.",
+      "error.invalidDocument": "The plugin returned an invalid policy document.",
       "error.policyInvalid": "Policy {index} is malformed.",
       "error.policyScopeInvalid": "Policy {index} has an invalid caller scope.",
       "error.policyScopeDuplicate": "Policy {index} has a duplicate caller scope.",
@@ -389,6 +407,8 @@
     persistenceSetupError: "",
     stalePolicies: [],
     revision: 0,
+    global_deny_models: [],
+    savedGlobalRules: [],
     selectedIndex: -1,
     dirty: false,
     busy: false,
@@ -491,7 +511,7 @@
   }
 
   function normalizePolicyDocument(raw) {
-    if (!raw || typeof raw !== "object" || raw.version !== 2 || !Array.isArray(raw.policies)) {
+    if (!raw || typeof raw !== "object" || ![2, 3].includes(raw.version) || !Array.isArray(raw.policies)) {
       throw new Error(t("error.invalidDocument"));
     }
     const seen = new Set();
@@ -515,7 +535,9 @@
       if (alias) entry.alias = alias;
       return entry;
     });
-    return { version: 2, policies };
+    const globalRules = raw.global_deny_models ?? [];
+    if ((raw.version === 3 && !Array.isArray(raw.global_deny_models)) || !Array.isArray(globalRules) || globalRules.some((rule) => typeof rule !== "string" || !rule.trim()) || (raw.version === 2 && globalRules.length)) throw new Error(t("error.invalidDocument"));
+    return { version: raw.version, global_deny_models: normalizeModels(globalRules), policies };
   }
 
   function shortFingerprint(scope) {
@@ -809,6 +831,7 @@
 
   function applyPolicyDocument(rawDocument) {
     const documentValue = normalizePolicyDocument(rawDocument);
+    state.global_deny_models = [...documentValue.global_deny_models];
     const byScope = new Map(documentValue.policies.map((policy) => [policy.caller_scope, policy]));
     const currentScopes = new Set(state.keys.map((key) => key.scope));
 
@@ -833,6 +856,7 @@
     state.modelsError = remote.catalog?.error || "";
     state.persistenceSetupError = remote.persistenceSetupError || "";
     applyPolicyDocument(remote.policies?.policy);
+    state.savedGlobalRules = [...state.global_deny_models];
     state.revision = Number(remote.policies?.revision ?? remote.status?.revision ?? 0);
     state.dirty = false;
     state.openPicker = "";
@@ -956,8 +980,8 @@
   function syncHeader() {
     const healthy = state.status && !state.status.last_error;
     const warning = state.status?.last_error;
-    healthBadge.innerHTML = `<span class="status-dot ${warning ? "warning" : healthy ? "" : "error"}"></span><span>${escapeHTML(warning ? t("health.warning") : healthy ? t("health.ok", { revision: state.revision }) : t("health.disconnected"))}</span>`;
-    healthBadge.title = warning ? state.status.last_error : healthy ? `Schema v${state.status.schema_version || 2}` : "";
+    healthBadge.innerHTML = `<span class="status-dot ${warning ? "warning" : healthy ? "" : "error"}"></span><span>${escapeHTML(warning ? t("health.warning") : healthy ? t("health.ok", { version: state.status.version || "—" }) : t("health.disconnected"))}</span>`;
+    healthBadge.title = warning ? state.status.last_error : healthy ? `rev-${state.revision} · Policy v${state.status.active_policy_version || 2}` : "";
     saveButton.disabled = state.busy || state.modelBusy || !state.dirty;
     reloadButton.disabled = state.busy || state.modelBusy || !state.status?.persistent_updates;
     reloadButton.title = t(state.status?.persistent_updates ? "action.reload" : "action.reloadUnavailable");
@@ -1055,6 +1079,11 @@
       </header>
       ${statusWarning}
       ${staleWarning}
+      <section class="card rules-card">
+        ${modelPicker("global_deny_models", t("global.title"), t("global.description"), state.global_deny_models, true)}
+        <div class="key-meta-card"><input id="globalRuleInput" type="text" aria-label="${escapeHTML(t("global.custom"))}" placeholder="${escapeHTML(t("global.custom"))}" autocomplete="off"><button type="button" data-action="add-global-rule">${escapeHTML(t("global.add"))}</button>
+        <p class="privacy-note">${escapeHTML(t("global.impact", {models: state.models.filter((model) => state.global_deny_models.some((rule) => modelPatternMatches(rule, model.id))).length, keys: state.keys.length}))}</p></div>
+      </section>
       <section class="stats" aria-label="${escapeHTML(t("overview.statsLabel"))}">
         ${statCard("API Keys", state.keys.length)}
         ${statCard(t("overview.configured"), configured)}
@@ -1072,6 +1101,7 @@
           ${statusRow(t("overview.identitySource"), state.status?.identity_source || "—")}
           ${statusRow(t("overview.unconfiguredKeys"), state.status?.unconfigured_key_action === "allow" ? t("overview.allowAll") : state.status?.unconfigured_key_action || "—")}
           ${statusRow(t("overview.policyCount"), state.status?.policy_count ?? "—")}
+          ${statusRow(t("overview.version"), state.status?.version || "—")}
           ${statusRow(t("overview.revision"), `rev-${state.revision}`)}
           ${statusRow(t("overview.source"), state.status?.source || "—")}
           ${statusRow("Schema", `v${state.status?.schema_version || 2}`)}
@@ -1110,6 +1140,7 @@
           <span class="pill ${empty ? "" : "active"}">${escapeHTML(t(empty ? "rules.defaultAllowAll" : "rules.configured"))}</span>
         </p>
       </header>
+      <p class="privacy-note">${escapeHTML(state.global_deny_models.length ? t("global.active", {rules: state.global_deny_models.join(", ")}) : t("global.none"))}</p>
       <section class="card key-meta-card">
         <div class="form-field">
           <label class="alias-field-label" for="keyAliasInput">
@@ -1156,7 +1187,7 @@
     const warmupRule = "warmup-*/*";
     const wildcardRow = `<button class="model-option wildcard-option ${wildcardSelected ? "selected" : ""}" type="button" role="option" aria-selected="${wildcardSelected}" data-action="toggle-model" data-kind="${kind}" data-model="*" data-search="全部模型 all models wildcard *">
       <span class="model-checkbox" aria-hidden="true">${wildcardSelected ? icons.check : ""}</span>
-      <span class="model-option-copy"><strong>${escapeHTML(t("picker.allModels"))}</strong><small>${escapeHTML(t(deny ? "picker.allDenyHint" : "picker.allAllowHint"))}</small></span>
+      <span class="model-option-copy"><strong>${escapeHTML(t("picker.allModels"))}</strong><small>${escapeHTML(t(kind === "global_deny_models" ? "global.description" : deny ? "picker.allDenyHint" : "picker.allAllowHint"))}</small></span>
       <span class="model-badge">${wildcardLabel}</span>
     </button>`;
     const commonWildcards = ["gpt-*", "claude-*", "gemini-*", "qwen-*", "deepseek-*", "grok-*", "kimi-*", "glm-*", "minimax-*"];
@@ -1231,7 +1262,7 @@
   }
 
   function validModelKind(kind) {
-    return kind === "allow_models" || kind === "deny_models";
+    return kind === "allow_models" || kind === "deny_models" || kind === "global_deny_models";
   }
 
   function restorePickerView(kind, focusSearch = false) {
@@ -1246,7 +1277,7 @@
 
   function updateModels(kind, updater) {
     if (state.busy || !validModelKind(kind)) return;
-    const key = selectedKey();
+    const key = kind === "global_deny_models" ? state : selectedKey();
     if (!key) return;
     const currentList = editor.querySelector(`[data-model-search="${kind}"]`)?.closest(".model-panel")?.querySelector(".model-list");
     state.pickerScroll = currentList?.scrollTop || 0;
@@ -1321,7 +1352,7 @@
       if (policy.alias && policy.alias.trim()) item.alias = policy.alias.trim();
       return item;
     });
-    return { version: 2, policies: [...active, ...stale] };
+    return { version: 3, global_deny_models: [...state.global_deny_models], policies: [...active, ...stale] };
   }
 
   function scopeSet(keys) {
@@ -1338,6 +1369,7 @@
     if (!state.dirty || state.busy) return;
     const expectedRevision = state.revision;
     const submittedPolicy = serializablePolicy();
+    if (JSON.stringify([...state.savedGlobalRules].sort()) !== JSON.stringify([...state.global_deny_models].sort()) && !window.confirm(t("global.confirm", {rules: state.global_deny_models.join(", ") || "∅", keys: state.keys.length}))) return;
     setBusy(true, "save");
     try {
       const latestKeys = await fetchCurrentKeys();
@@ -1362,6 +1394,7 @@
         postSaveCheckError = verificationError;
       }
       applyPolicyDocument(response?.policy || submittedPolicy);
+      state.savedGlobalRules = [...state.global_deny_models];
       state.revision = Number(response?.revision ?? expectedRevision + 1);
       state.dirty = false;
       renderAll();
@@ -1402,6 +1435,7 @@
       const remoteRevision = Number(policies?.revision ?? 0);
       if (remoteRevision <= expectedRevision || !policiesEquivalent(submittedPolicy, policies?.policy)) return false;
       applyPolicyDocument(policies.policy);
+      state.savedGlobalRules = [...state.global_deny_models];
       state.revision = remoteRevision;
       state.dirty = false;
       try { state.status = await api(PATHS.status, { method: "GET" }); } catch (_) { /* policy confirmation is sufficient */ }
@@ -1419,7 +1453,7 @@
       allow_models: [...policy.allow_models].sort(),
       deny_models: [...policy.deny_models].sort()
     })).sort((left, right) => left.caller_scope.localeCompare(right.caller_scope));
-    return JSON.stringify(canonical(leftRaw)) === JSON.stringify(canonical(rightRaw));
+    return JSON.stringify(canonical(leftRaw)) === JSON.stringify(canonical(rightRaw)) && JSON.stringify([...normalizePolicyDocument(leftRaw).global_deny_models].sort()) === JSON.stringify([...normalizePolicyDocument(rightRaw).global_deny_models].sort());
   }
 
   async function refreshData() {
@@ -1615,7 +1649,10 @@
     if (target.dataset.select) { selectView(target); return; }
     const action = target.dataset.action;
     const kind = target.dataset.kind;
-    if (action === "toggle-picker" && validModelKind(kind)) {
+    if (action === "add-global-rule") {
+      const rule = editor.querySelector("#globalRuleInput")?.value.trim();
+      if (rule) updateModels("global_deny_models", (models) => [...models, rule]);
+    } else if (action === "toggle-picker" && validModelKind(kind)) {
       const opening = state.openPicker !== kind;
       state.openPicker = opening ? kind : "";
       if (opening) { state.pickerQuery = ""; state.pickerScroll = 0; }

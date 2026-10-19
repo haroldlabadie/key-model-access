@@ -1,4 +1,8 @@
-version: 2
+version: 3
+
+# Applies to every CPA key and upstream account. Key allow cannot override this.
+# A global warmup-*/* rule also blocks the dedicated warmup key.
+global_deny_models: []
 
 # caller_scope is a 64-character hexadecimal identity derived by CPA for an
 # existing top-level api-keys entry. This value is syntactically valid, but is

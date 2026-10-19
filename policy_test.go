@@ -68,7 +68,7 @@ func TestCompileDocumentV2Semantics(t *testing.T) {
 }
 
 func TestCompileDocumentRejectsV1InvalidScopeAndDuplicates(t *testing.T) {
-	if _, _, err := compileDocument(policyDocument{Version: 1}); err == nil || !strings.Contains(err.Error(), "only version 2") {
+	if _, _, err := compileDocument(policyDocument{Version: 1}); err == nil || !strings.Contains(err.Error(), "versions 2 and 3") {
 		t.Fatalf("v1 error = %v", err)
 	}
 	if _, _, err := compileDocument(policyDocument{Version: 2, Policies: []policyConfig{{CallerScope: "not-a-scope"}}}); err == nil {
@@ -150,7 +150,7 @@ func TestInitialInvalidConfigurationBlocksAll(t *testing.T) {
 		t.Fatalf("initial invalid configuration did not block all: %#v", response)
 	}
 	_, snapshot, _, _, _, lastError := globalState.current()
-	if !snapshot.BlockAll || !strings.Contains(lastError, "only version 2") {
+	if !snapshot.BlockAll || !strings.Contains(lastError, "versions 2 and 3") {
 		t.Fatalf("snapshot=%#v lastError=%q", snapshot, lastError)
 	}
 }
@@ -207,7 +207,7 @@ func TestPolicyFileIsStrictV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := compileDocument(document); err == nil || !strings.Contains(err.Error(), "only version 2") {
+	if _, _, err := compileDocument(document); err == nil || !strings.Contains(err.Error(), "versions 2 and 3") {
 		t.Fatalf("v1 compile error = %v", err)
 	}
 }
@@ -400,7 +400,7 @@ func TestManagementPersistenceAndGETUseOnlyV2Schema(t *testing.T) {
 	if err := json.Unmarshal(response.Body, &payload); err != nil {
 		t.Fatal(err)
 	}
-	if len(payload.Policy) != 2 || payload.Policy["version"] == nil || payload.Policy["policies"] == nil {
+	if len(payload.Policy) != 3 || payload.Policy["version"] == nil || payload.Policy["policies"] == nil {
 		t.Fatalf("GET policy schema = %#v", payload.Policy)
 	}
 }
@@ -429,7 +429,7 @@ func TestManagementReloadKeepsLastValidSnapshotOnInvalidFile(t *testing.T) {
 		t.Fatal("invalid reload replaced the last valid snapshot")
 	}
 	_, _, _, _, _, lastError := globalState.current()
-	if !strings.Contains(lastError, "only version 2") {
+	if !strings.Contains(lastError, "versions 2 and 3") {
 		t.Fatalf("last error = %q", lastError)
 	}
 }

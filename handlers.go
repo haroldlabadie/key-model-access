@@ -37,6 +37,14 @@ func interceptRequest(raw []byte) ([]byte, error) {
 		return terminatedPolicyResponse(http.StatusForbidden, "model access policy is unavailable", model)
 	}
 
+	if len(snapshot.GlobalDenyModels) > 0 {
+		if model == "" {
+			return terminatedPolicyResponse(http.StatusForbidden, "requested model is unavailable for policy evaluation", "")
+		}
+		if rule := globalDeniedRule(snapshot, req.RequestedModel, req.Model); rule != "" {
+			return terminatedGlobalResponse(model, rule)
+		}
+	}
 	scope, hasScope := callerScopeFromMetadata(req.Metadata)
 	if len(snapshot.ByCallerScope) > 0 && !hasScope {
 		return terminatedPolicyResponse(http.StatusForbidden, "model access identity is unavailable", model)
@@ -141,6 +149,8 @@ func managementStatus() ([]byte, error) {
 		"unconfigured_key_action": "allow",
 		"last_error":              lastError,
 		"policy_count":            len(snapshot.ByCallerScope),
+		"global_deny_count":       len(snapshot.GlobalDenyModels),
+		"active_policy_version":   cfg.Version,
 		"revision":                revision,
 		"policy_file":             cfg.PolicyFile,
 		"persistent_updates":      cfg.PolicyFile != "",
@@ -194,12 +204,18 @@ func managementReplacePolicies(body []byte, ifMatch string) ([]byte, error) {
 	if err := ensureJSONEOF(decoder); err != nil {
 		return managementJSON(http.StatusBadRequest, map[string]any{"error": err.Error()})
 	}
+	if document.Version >= 3 && document.GlobalDenyModels == nil {
+		return managementJSON(http.StatusUnprocessableEntity, map[string]any{"error": "global_deny_models must be explicitly supplied (use [] to clear)"})
+	}
 	snapshot, sanitized, err := compileDocument(document)
 	if err != nil {
 		return managementJSON(http.StatusUnprocessableEntity, map[string]any{"error": err.Error()})
 	}
 
 	cfg, _, _, _, _, _ := globalState.current()
+	if cfg.Version >= 3 && document.Version < 3 {
+		return managementJSON(http.StatusConflict, map[string]any{"error": "policy version 3 is active; upgrade the client before saving"})
+	}
 	if cfg.PolicyFile != "" {
 		if err := writePolicyFile(cfg.PolicyFile, sanitized); err != nil {
 			return managementJSON(http.StatusInternalServerError, map[string]any{"error": err.Error()})
@@ -207,6 +223,7 @@ func managementReplacePolicies(body []byte, ifMatch string) ([]byte, error) {
 	}
 	cfg.Version = sanitized.Version
 	cfg.Policies = clonePolicyConfigs(sanitized.Policies)
+	cfg.GlobalDenyModels = append([]string{}, sanitized.GlobalDenyModels...)
 	source := "Management API (memory only)"
 	if cfg.PolicyFile != "" {
 		source = cfg.PolicyFile
@@ -354,6 +371,7 @@ func managementReload() ([]byte, error) {
 	}
 	cfg.Version = sanitized.Version
 	cfg.Policies = clonePolicyConfigs(sanitized.Policies)
+	cfg.GlobalDenyModels = append([]string{}, sanitized.GlobalDenyModels...)
 	globalState.replace(cfg, snapshot, cfg.PolicyFile)
 	return managementJSON(http.StatusOK, map[string]any{
 		"ok": true, "policy_count": len(snapshot.ByCallerScope), "revision": globalState.policyRevision(),
@@ -410,4 +428,38 @@ func formattedTime(value time.Time) string {
 		return ""
 	}
 	return value.UTC().Format(time.RFC3339Nano)
+}
+
+// Both identities are supplied by CPA: the public request and the selected
+// execution model. Never strip arbitrary account/vendor prefixes here.
+func globalDeniedRule(snapshot policySnapshot, models ...string) string {
+	for _, model := range models {
+		model = strings.TrimSpace(model)
+		if model == "" {
+			continue
+		}
+		for _, rule := range snapshot.GlobalDenyModels {
+			if wildcardMatch(rule, model) || wildcardMatch(rule, modelWithoutThinkingSuffix(model)) {
+				return rule
+			}
+		}
+	}
+	return ""
+}
+
+func terminatedGlobalResponse(model, rule string) ([]byte, error) {
+	body, err := json.Marshal(map[string]any{"error": map[string]any{"type": "model_access_denied", "reason": "global_deny", "message": "model is globally disabled", "model": model, "rule": rule}})
+	if err != nil {
+		return nil, err
+	}
+	return okEnvelope(requestInterceptResponse{Terminate: true, StatusCode: http.StatusForbidden, ResponseHeaders: http.Header{"Content-Type": []string{"application/json; charset=utf-8"}}, ResponseBody: body})
+}
+
+// Mirrors CPA v8 internal/thinking.ParseSuffix: the final (...) is an
+// execution option, not a separate model identity. Key matching stays unchanged.
+func modelWithoutThinkingSuffix(model string) string {
+	if index := strings.LastIndex(model, "("); index >= 0 && strings.HasSuffix(model, ")") {
+		return model[:index]
+	}
+	return model
 }

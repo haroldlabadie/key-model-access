@@ -34,7 +34,7 @@ func TestRPCNegotiationPreservesV2Policies(t *testing.T) {
 				t.Fatal("incorrect interceptor capability")
 			}
 			cfg, snapshot, _, _, _, _ := globalState.current()
-			if cfg.Version != 2 {
+			if cfg.Version != 2 && host >= minimumRPCSchemaVersion {
 				t.Fatalf("policy version = %d", cfg.Version)
 			}
 			if snapshot.BlockAll == supported {

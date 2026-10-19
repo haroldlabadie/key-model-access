@@ -18,7 +18,7 @@ function load(respond = () => { throw new Error('Unexpected fetch'); }, globals 
     fetch: async (path, options) => ({ ok: true, json: async () => respond(path, options) })
   });
   vm.runInContext(source.slice(0, source.indexOf(marker)) +
-    'globalThis.helpers = { pluginsDirFromList, initializeDefaultPersistence, fetchCurrentKeys, api, normalizePolicyDocument, MESSAGES, t, getLocale: () => locale, readSavedManagementKey, clearSavedManagementKey, STANDALONE_AUTH_KEY, isInternalWarmupModel, modelPatternMatches, modelPickerHTML: (selected, models, showWarmup = false) => { state.models = models; state.showWarmupModels = showWarmup; state.openPicker = \'deny_models\'; return modelPicker(\'deny_models\', \'Deny\', \'\', selected, true); } }; })();', context);
+    'globalThis.helpers = { pluginsDirFromList, initializeDefaultPersistence, fetchCurrentKeys, api, normalizePolicyDocument, renderOverview, renderKeyEditor, syncHeader, serializablePolicy, policiesEquivalent, applyPolicyDocument, state, MESSAGES, t, getLocale: () => locale, readSavedManagementKey, clearSavedManagementKey, STANDALONE_AUTH_KEY, isInternalWarmupModel, modelPatternMatches, modelPickerHTML: (selected, models, showWarmup = false) => { state.models = models; state.showWarmupModels = showWarmup; state.openPicker = \'deny_models\'; return modelPicker(\'deny_models\', \'Deny\', \'\', selected, true); } }; })();', context);
   return context.helpers;
 }
 
@@ -83,7 +83,7 @@ test('generic API and policy normalization preserve plugin entity literals', asy
   const helpers = load(() => ({ policy, error: '&lt;error&gt;' }));
   const response = await helpers.api('/v0/management/plugins/key-model-access/policies');
   assert.equal(response.error, '&lt;error&gt;');
-  assert.equal(JSON.stringify(helpers.normalizePolicyDocument(response.policy)), JSON.stringify(policy));
+  assert.equal(JSON.stringify(helpers.normalizePolicyDocument(response.policy)), JSON.stringify({version: 2, global_deny_models: [], policies: policy.policies}));
 });
 
 test('API keys expose only a masked head/tail fragment, never the full secret', async () => {
@@ -206,4 +206,48 @@ test('warmup route preset: remains selectable without a warmup catalog and match
   assert.equal(modelPatternMatches('warmup-*/*', 'warmup-antigravity-012345abcdef/claude-opus-4-6-thinking'), true);
   assert.equal(modelPatternMatches('warmup-*/*', 'gpt-6-luna'), false);
   assert.equal(modelPatternMatches('gpt-*', 'warmup-codex-89abcdef0123/gpt-6-luna'), false);
+});
+
+
+test('global deny: v2 migration and v3 rules survive normalization', () => {
+  const { normalizePolicyDocument } = load();
+  assert.equal(normalizePolicyDocument({version:2,policies:[]}).global_deny_models.length,0);
+  const rules=normalizePolicyDocument({version:3,global_deny_models:[' z-* ','a'],policies:[]});
+  assert.equal(JSON.stringify(rules.global_deny_models),JSON.stringify(['z-*','a']));
+  assert.throws(()=>normalizePolicyDocument({version:2,global_deny_models:['x'],policies:[]}));
+  assert.throws(()=>normalizePolicyDocument({version:3,global_deny_models:'*',policies:[]}));
+});
+
+
+test('global deny: full document save, draft retention, and conflict comparison', () => {
+ const h=load();
+ h.applyPolicyDocument({version:3,global_deny_models:['blocked'],policies:[]});
+ let doc=h.serializablePolicy();
+ assert.equal(doc.version,3);
+ assert.equal(JSON.stringify(doc.global_deny_models),'["blocked"]');
+ assert.equal(h.policiesEquivalent(doc,{version:3,global_deny_models:[],policies:[]}),false);
+ assert.equal(h.policiesEquivalent(doc,{version:3,global_deny_models:['blocked'],policies:[]}),true);
+ h.state.keys=[{scope:'a'.repeat(64),alias:'test',allow_models:['blocked'],deny_models:[]}];
+ assert.equal(h.serializablePolicy().policies[0].allow_models[0],'blocked');
+ assert.equal(h.serializablePolicy().global_deny_models[0],'blocked');
+ assert.throws(()=>h.normalizePolicyDocument({version:3,policies:[]}));
+});
+
+
+test('global deny: overview editor, per-key notice, and actual plugin version render', () => {
+ const elements=new Map();
+ const document={querySelector:(selector)=>{if(!elements.has(selector)) elements.set(selector,{dataset:{},innerHTML:'',textContent:''});return elements.get(selector);},documentElement:{classList:{toggle(){}}}};
+ const h=load(undefined,{document});
+ h.state.status={version:'0.4.0',active_policy_version:3};
+ h.state.models=[{id:'blocked',displayName:''}];
+ h.state.global_deny_models=['blocked'];
+ h.renderOverview();
+ assert.match(elements.get('#editor').innerHTML,/data-kind="global_deny_models"/);
+ assert.match(elements.get('#editor').innerHTML,/globalRuleInput/);
+ h.renderKeyEditor({scope:'a'.repeat(64),mask:'test',fingerprint:'test',allow_models:['blocked'],deny_models:[]},0);
+ assert.match(elements.get('#editor').innerHTML,/blocked/);
+ assert.match(elements.get('#editor').innerHTML,/cannot override|无法覆盖/);
+ h.syncHeader();
+ assert.match(elements.get('#healthBadge').innerHTML,/v0.4.0/);
+ assert.doesNotMatch(elements.get('#healthBadge').innerHTML,/rev-/);
 });

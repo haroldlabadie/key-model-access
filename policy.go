@@ -22,17 +22,19 @@ import (
 const maxPolicyFileSize = 2 << 20
 
 type pluginConfig struct {
-	Enabled    *bool          `json:"enabled,omitempty" yaml:"enabled,omitempty"`
-	Priority   int            `json:"priority,omitempty" yaml:"priority,omitempty"`
-	Store      any            `json:"store,omitempty" yaml:"store,omitempty"`
-	PolicyFile string         `json:"policy_file,omitempty" yaml:"policy_file,omitempty"`
-	Version    int            `json:"version,omitempty" yaml:"version,omitempty"`
-	Policies   []policyConfig `json:"policies,omitempty" yaml:"policies,omitempty"`
+	GlobalDenyModels []string       `json:"global_deny_models,omitempty" yaml:"global_deny_models,omitempty"`
+	Enabled          *bool          `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	Priority         int            `json:"priority,omitempty" yaml:"priority,omitempty"`
+	Store            any            `json:"store,omitempty" yaml:"store,omitempty"`
+	PolicyFile       string         `json:"policy_file,omitempty" yaml:"policy_file,omitempty"`
+	Version          int            `json:"version,omitempty" yaml:"version,omitempty"`
+	Policies         []policyConfig `json:"policies,omitempty" yaml:"policies,omitempty"`
 }
 
 type policyDocument struct {
-	Version  int            `json:"version" yaml:"version" toml:"version"`
-	Policies []policyConfig `json:"policies" yaml:"policies" toml:"policies"`
+	GlobalDenyModels []string       `json:"global_deny_models" yaml:"global_deny_models" toml:"global_deny_models"`
+	Version          int            `json:"version" yaml:"version" toml:"version"`
+	Policies         []policyConfig `json:"policies" yaml:"policies" toml:"policies"`
 }
 
 type policyConfig struct {
@@ -48,8 +50,9 @@ type runtimePolicy struct {
 }
 
 type policySnapshot struct {
-	ByCallerScope map[string]runtimePolicy
-	BlockAll      bool
+	GlobalDenyModels []string
+	ByCallerScope    map[string]runtimePolicy
+	BlockAll         bool
 }
 
 type state struct {
@@ -183,13 +186,14 @@ func configure(raw []byte) error {
 	}
 	cfg.Version = sanitized.Version
 	cfg.Policies = sanitized.Policies
+	cfg.GlobalDenyModels = append([]string{}, sanitized.GlobalDenyModels...)
 	globalState.setHostSchema(req.SchemaVersion)
 	globalState.replace(cfg, snapshot, source)
 	return nil
 }
 
 func documentFromConfig(cfg pluginConfig) policyDocument {
-	return policyDocument{Version: cfg.Version, Policies: clonePolicyConfigs(cfg.Policies)}
+	return policyDocument{Version: cfg.Version, GlobalDenyModels: append([]string{}, cfg.GlobalDenyModels...), Policies: clonePolicyConfigs(cfg.Policies)}
 }
 
 func clonePolicyConfigs(policies []policyConfig) []policyConfig {
@@ -269,14 +273,22 @@ func decodeStrictYAML(raw []byte, target any) error {
 }
 
 func compileDocument(document policyDocument) (policySnapshot, policyDocument, error) {
-	if document.Version != policySchemaVersion {
-		return policySnapshot{}, policyDocument{}, fmt.Errorf("unsupported policy version %d; only version 2 is supported", document.Version)
+	if document.Version != 2 && document.Version != policySchemaVersion {
+		return policySnapshot{}, policyDocument{}, fmt.Errorf("unsupported policy version %d; versions 2 and 3 are supported", document.Version)
+	}
+	if document.Version == 2 && len(document.GlobalDenyModels) > 0 {
+		return policySnapshot{}, policyDocument{}, fmt.Errorf("global_deny_models requires policy version 3")
+	}
+	var err error
+	document.GlobalDenyModels, err = normalizePatterns(document.GlobalDenyModels, "global_deny_models")
+	if err != nil {
+		return policySnapshot{}, policyDocument{}, err
 	}
 	if document.Policies == nil {
 		document.Policies = []policyConfig{}
 	}
 
-	snapshot := policySnapshot{ByCallerScope: make(map[string]runtimePolicy)}
+	snapshot := policySnapshot{ByCallerScope: make(map[string]runtimePolicy), GlobalDenyModels: append([]string{}, document.GlobalDenyModels...)}
 	for index := range document.Policies {
 		item := &document.Policies[index]
 		item.CallerScope = strings.ToLower(strings.TrimSpace(item.CallerScope))
@@ -393,11 +405,7 @@ func writePolicyFile(path string, document policyDocument) error {
 	var raw []byte
 	var err error
 	if strings.EqualFold(filepath.Ext(path), ".toml") {
-		if len(document.Policies) == 0 {
-			raw = []byte("version = 2\npolicies = []\n")
-		} else {
-			raw, err = toml.Marshal(document)
-		}
+		raw, err = toml.Marshal(document)
 	} else {
 		raw, err = yaml.Marshal(document)
 	}

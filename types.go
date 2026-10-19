@@ -10,11 +10,11 @@ const (
 	abiVersion              uint32 = 1
 	rpcSchemaVersion        uint32 = 6 // Raw management responses; no HTML entity rewriting.
 	minimumRPCSchemaVersion uint32 = 2 // Structured interceptor termination.
-	policySchemaVersion            = 2 // Persisted policy format, independent of RPC.
+	policySchemaVersion            = 3 // Persisted policy format, independent of RPC.
 	pluginID                       = "key-model-access"
 )
 
-var pluginVersion = "0.3.6"
+var pluginVersion = "0.4.0"
 
 const (
 	methodPluginRegister         = "plugin.register"

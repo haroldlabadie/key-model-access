@@ -20,7 +20,7 @@ CLIProxyAPI（CPA）原生动态库插件。CPA 继续使用顶层 `api-keys` �
 
 - CLIProxyAPI **v7.2.103 或更新版本**。
 - 最低要求 CPA 插件 RPC schema 2，用于 RequestInterceptor 主动返回结构化 `403`；插件最高声明 schema 6，在新后端上保留管理响应的原始业务字符串，避免 HTML 实体转义改变模型规则或路径。
-- RPC schema 与策略文件版本独立：策略仍为 **version 2**，无需迁移。宿主协商 schema 2–5 时，是否转义管理响应取决于宿主实现；使用含特殊字符的路径或规则时建议升级到支持 schema 6 的后端。
+- RPC schema 与策略文件版本独立：支持读取策略 **version 2 / 3**；新版页面保存为 v3，包含 `global_deny_models`。v3 启用后拒绝旧客户端的 v2 写入，避免丢失全局规则。宿主协商 schema 2–5 时，是否转义管理响应取决于宿主实现；使用含特殊字符的路径或规则时建议升级到支持 schema 6 的后端。
 - 支持 CPA 动态插件的 CGO 构建；需要 Go 1.24、C 编译器和 `CGO_ENABLED=1`。
 - 可通过任一 Management API 响应头 `X-CPA-SUPPORT-PLUGIN: 1` 确认 CPA 二进制支持插件。
 
@@ -154,7 +154,7 @@ http://<CPA_HOST>:<CPA_PORT>/v0/resource/plugins/key-model-access/settings
 2. `GET /v0/management/api-keys`，只读获取 CPA 当前顶层 Key；
 3. 在浏览器内按 CPA 的规则计算对应 `caller_scope`；
 4. 临时使用第一个 CPA API Key 读取 `GET /v1/models`，生成可搜索、多选的模型目录；
-5. 读取插件 v2 策略并按 scope 关联；
+5. 读取插件 v2/v3 策略并按 scope 关联；
 6. 通过选择器编辑、保存 `allow_models` 和 `deny_models`。选择器提供精确模型、全部模型 `*`、当前目录可识别的常用模型家族通配符，以及预热模型名称通配符 `warmup-*/*`；这些规则统一归入“通配符”，与“具体模型”列表分开；已有的其他自定义通配符会继续保留并显示其目录匹配结果。`warmup-*/*` 始终可选，即使目录暂未返回预热路由。
 
 UI 不创建、修改或删除 CPA Key，也不会向 `/v0/management/api-keys` 发出写请求。Key 生命周期仍应通过 CPA 配置或 CPA 自身管理能力完成。UI 会在策略保存前后核对 CPA Key 集合：保存前发现变化会中止并要求刷新；保存后发现变化会立即警告新 Key 当前默认允许全部。两次请求之间仍无法形成事务，因此 Key 变更和策略保存应由运维流程串行化。不再对应当前 Key 的旧 scope 会标记为失效策略，并在保存时保留，避免静默删除。
@@ -176,7 +176,31 @@ UI 不创建、修改或删除 CPA Key，也不会向 `/v0/management/api-keys` 
 
 `warmup-*/*` 与 `gpt-*` 等模型族规则用途不同：后者匹配裸模型 ID，不自动匹配 `warmup-codex-…/gpt-…`。规则选择是“任一命中”，因此不能把 `warmup-*/*` 与 `gpt-*` 同时放进 allow 来表示“预热路由中的 GPT”。按 Key 拒绝 `warmup-*/*` 不影响专用预热 Key 的精确 allow；如设为全局禁用，预热 Key 同样会被拒绝。该规则控制实际请求，不改变 CPA 目录；目录展示仍由“显示预热模型”开关和宿主的目录响应决定。
 
-## 策略 schema v2
+## 全局禁用（0.4.0）
+
+在概览页编辑“全局禁用”，支持精确名称、通配符和自定义规则。保存前显示影响范围；所有现有和新增 Key、所有上游凭证均受约束，按 Key 的 allow 不能覆盖。Key 页面显示有效的全局限制。侧栏显示真实插件版本，配置修订号保留在概览详情。
+
+```toml
+version = 3
+global_deny_models = ["gemini-3.1-flash-lite"]
+policies = []
+```
+
+判定顺序：策略有效性 → 全局禁用 → Key 禁用 → Key 非空白名单 → 默认允许。全局检查 CPA 提供的原请求名和执行模型名，同时识别 CPA 的 `(high)` / `(8192)` 等推理后缀；不对任意 `vendor/model` 擅自剥离前缀。全局命中返回 403，错误 `reason=global_deny`。原按 Key 完整名称匹配语义不变。
+
+v2 文件可直接读取且不主动改写；首次使用新版页面保存后升级到 v3。v3 管理写入必须显式携带 `global_deny_models`（清空用 `[]`）；旧 v2 客户端不能覆盖已启用的 v3。回滚必须恢复成对的旧动态库和 v2 策略文件。全局规则与 Key 规则共用 revision / If-Match 和原子持久化。
+
+此版本实现请求拒绝，**不筛选 CPA 模型目录**；列表可见不代表允许调用。OAuth 凭证的额度/账号限制继续保留。`warmup-*/*` 若全局禁用，专用预热 Key 也被拒绝。
+
+已在 CPA v8.0.33 镜像与假上游隔离联调：Chat Completions、Responses、Messages、Gemini 入口，流式/非流式、别名、预热前缀、推理后缀、无 Key 策略及 Key allow。WebSocket 拒绝请求时，宿主可能直接关闭连接；未向假上游发出请求，不承诺该宿主返回结构化 WebSocket 错误。
+
+```sh
+python3 tests/integration.py --library dist/key-model-access.so --image <CPA-image-id>
+```
+
+该 Linux 测试需 Docker、Python 3 和 websocket-client，使用随机回环端口、假凭据与 `--rm` 容器，退出自动清理，不挂载生产配置。
+
+## 兼容的策略 schema v2
 
 v2 文档顶层只有 `version` 和 `policies`。每条策略只有：
 
@@ -233,8 +257,8 @@ Management API 的 PUT 请求体使用同一 schema：
 
 匹配语义：
 
-1. Key 没有对应策略：允许全部模型。
-2. 命中任意 `deny_models`：拒绝，优先级最高。
+1. 以下 Key 判定均以未命中全局禁用为前提；Key 没有对应策略时不额外限制。
+2. 命中任意 Key `deny_models`：拒绝，优先于 Key allow。
 3. `allow_models` 非空：只有命中 allow 且未命中 deny 才允许。
 4. `allow_models` 为空：允许所有未命中 deny 的模型。
 5. allow 和 deny 都为空等同于允许全部；UI 通常不会为这种 Key 写入策略。
@@ -248,7 +272,7 @@ YAML、TOML 和 JSON 都严格拒绝未知字段、重复 `caller_scope` 和非 
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | `GET` | `/v0/management/plugins/key-model-access/status` | 查看版本、策略来源、持久化和 fail-closed 状态；不返回 scope |
-| `GET` | `/v0/management/plugins/key-model-access/policies` | 获取完整 v2 策略和 revision |
+| `GET` | `/v0/management/plugins/key-model-access/policies` | 获取完整策略、全局禁用和 revision |
 | `PUT` | `/v0/management/plugins/key-model-access/policies` | 用 JSON 原子替换全部策略 |
 | `POST` | `/v0/management/plugins/key-model-access/reload` | 从已配置的 `policy_file` 重载 |
 | `POST` | `/v0/management/plugins/key-model-access/initialize-storage` | 在给定的 CPA 插件根目录创建或校验默认 `config.toml` |

@@ -144,7 +144,7 @@ func TestManagementPoliciesReturnsSafeV2DocumentWhenFailClosed(t *testing.T) {
 	if string(response.Body) == "" || strings.Contains(string(response.Body), `"version":1`) {
 		t.Fatalf("unsafe fail-closed policy response: %s", response.Body)
 	}
-	if !strings.Contains(string(response.Body), `"version":2`) || !strings.Contains(string(response.Body), `"policies":[]`) {
+	if !strings.Contains(string(response.Body), `"version":3`) || !strings.Contains(string(response.Body), `"policies":[]`) {
 		t.Fatalf("unexpected fail-closed policy response: %s", response.Body)
 	}
 }
