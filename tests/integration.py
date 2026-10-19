@@ -68,7 +68,7 @@ try:
         except OSError: pass
         time.sleep(.5)
     else: raise AssertionError('isolated CPA did not start')
-    assert json.loads(body)['version']=='0.5.0', body
+    assert json.loads(body)['version']=='0.5.1', body
     code, body = call('/v1/chat/completions',{'model':'allowed','messages':[{'role':'user','content':'hi'}]})
     assert code==200,(code,body)
     print('PASS allowed model reaches fake upstream')

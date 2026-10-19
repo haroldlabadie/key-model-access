@@ -243,7 +243,7 @@ test('global deny: overview editor, per-key notice, and actual plugin version re
  h.state.global_deny_models=['blocked'];
  h.renderOverview();
  assert.match(elements.get('#editor').innerHTML,/data-kind="global_deny_models"/);
- assert.match(elements.get('#editor').innerHTML,/globalRuleInput/);
+ assert.doesNotMatch(elements.get('#editor').innerHTML,/globalRuleInput|add-global-rule/);
  h.renderKeyEditor({scope:'a'.repeat(64),mask:'test',fingerprint:'test',allow_models:['blocked'],deny_models:[]},0);
  assert.match(elements.get('#editor').innerHTML,/blocked/);
  assert.match(elements.get('#editor').innerHTML,/cannot override|无法覆盖/);

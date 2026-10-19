@@ -137,8 +137,6 @@
 "global.none": "未设置全局禁用",
 "global.active": "全局禁用：{rules}。命中时优先拒绝，Key 允许列表无法覆盖。",
 "global.impact": "当前目录匹配 {models} 个名称；作用于全部 {keys} 个现有 Key 及未来新增 Key，匹配的预热请求也会被拒绝。",
-"global.custom": "输入模型名称或通配符",
-"global.add": "添加规则",
 "overview.version": "插件版本",
 "picker.wildcardGroup": "通配符",
       "picker.modelGroup": "具体模型",
@@ -289,8 +287,6 @@
 "global.none": "No global deny rules",
 "global.active": "Global deny: {rules}. Key allow rules cannot override it.",
 "global.impact": "Matches {models} catalog names across all {keys} existing keys and future keys. Matching warmup requests are denied too.",
-"global.custom": "Enter a model name or wildcard",
-"global.add": "Add rule",
 "overview.version": "Plugin version",
 "picker.wildcardGroup": "Wildcards",
       "picker.modelGroup": "Individual models",
@@ -1080,8 +1076,7 @@
       ${staleWarning}
       <section class="card rules-card">
         ${modelPicker("global_deny_models", t("global.title"), t("global.description"), state.global_deny_models, true)}
-        <div class="key-meta-card"><input id="globalRuleInput" type="text" aria-label="${escapeHTML(t("global.custom"))}" placeholder="${escapeHTML(t("global.custom"))}" autocomplete="off"><button type="button" data-action="add-global-rule">${escapeHTML(t("global.add"))}</button>
-        <p class="privacy-note">${escapeHTML(t("global.impact", {models: state.models.filter((model) => state.global_deny_models.some((rule) => modelPatternMatches(rule, model.id))).length, keys: state.keys.length}))}</p></div>
+        <p class="privacy-note">${escapeHTML(t("global.impact", {models: state.models.filter((model) => state.global_deny_models.some((rule) => modelPatternMatches(rule, model.id))).length, keys: state.keys.length}))}</p>
       </section>
       <section class="stats" aria-label="${escapeHTML(t("overview.statsLabel"))}">
         ${statCard("API Keys", state.keys.length)}
@@ -1645,10 +1640,7 @@
     if (target.dataset.select) { selectView(target); return; }
     const action = target.dataset.action;
     const kind = target.dataset.kind;
-    if (action === "add-global-rule") {
-      const rule = editor.querySelector("#globalRuleInput")?.value.trim();
-      if (rule) updateModels("global_deny_models", (models) => [...models, rule]);
-    } else if (action === "toggle-picker" && validModelKind(kind)) {
+    if (action === "toggle-picker" && validModelKind(kind)) {
       const opening = state.openPicker !== kind;
       state.openPicker = opening ? kind : "";
       if (opening) { state.pickerQuery = ""; state.pickerScroll = 0; }
