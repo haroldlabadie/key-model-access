@@ -132,7 +132,6 @@
       "picker.allAllowHint": "* · 自动包含未来新增模型",
       "picker.presetHint": "当前匹配 {count} 个模型，并覆盖未来同前缀模型",
       "picker.warmupPresetHint": "当前匹配 {count} 个预热模型名称，并自动覆盖新增名称",
-      "global.confirm": "将全局禁用规则保存为：{rules}。对全部 {keys} 个现有 Key 及未来新增 Key 生效，包括预热 Key；允许列表无法覆盖。确认保存？",
 "global.title": "全局禁用",
 "global.description": "对所有 Key 和上游账号生效，包括预热 Key；Key 允许列表无法覆盖。",
 "global.none": "未设置全局禁用",
@@ -285,7 +284,6 @@
       "picker.allAllowHint": "* · Automatically includes future models",
       "picker.presetHint": ({ count }) => `Matches ${count} ${plural(count, "model", "models")} now, plus future models with this prefix`,
       "picker.warmupPresetHint": ({ count }) => `Matches ${count} warmup model ${plural(count, "name", "names")} now, plus future names`,
-      "global.confirm": "Save global deny rules: {rules}. Applies to all {keys} existing keys and future keys, including warmup keys. Key allow rules cannot override this. Save?",
 "global.title": "Global deny",
 "global.description": "Applies to all keys and accounts, including warmup keys. Key allow rules cannot override it.",
 "global.none": "No global deny rules",
@@ -408,7 +406,6 @@
     stalePolicies: [],
     revision: 0,
     global_deny_models: [],
-    savedGlobalRules: [],
     selectedIndex: -1,
     dirty: false,
     busy: false,
@@ -856,7 +853,6 @@
     state.modelsError = remote.catalog?.error || "";
     state.persistenceSetupError = remote.persistenceSetupError || "";
     applyPolicyDocument(remote.policies?.policy);
-    state.savedGlobalRules = [...state.global_deny_models];
     state.revision = Number(remote.policies?.revision ?? remote.status?.revision ?? 0);
     state.dirty = false;
     state.openPicker = "";
@@ -1369,7 +1365,6 @@
     if (!state.dirty || state.busy) return;
     const expectedRevision = state.revision;
     const submittedPolicy = serializablePolicy();
-    if (JSON.stringify([...state.savedGlobalRules].sort()) !== JSON.stringify([...state.global_deny_models].sort()) && !window.confirm(t("global.confirm", {rules: state.global_deny_models.join(", ") || "∅", keys: state.keys.length}))) return;
     setBusy(true, "save");
     try {
       const latestKeys = await fetchCurrentKeys();
@@ -1394,7 +1389,6 @@
         postSaveCheckError = verificationError;
       }
       applyPolicyDocument(response?.policy || submittedPolicy);
-      state.savedGlobalRules = [...state.global_deny_models];
       state.revision = Number(response?.revision ?? expectedRevision + 1);
       state.dirty = false;
       renderAll();
@@ -1435,7 +1429,6 @@
       const remoteRevision = Number(policies?.revision ?? 0);
       if (remoteRevision <= expectedRevision || !policiesEquivalent(submittedPolicy, policies?.policy)) return false;
       applyPolicyDocument(policies.policy);
-      state.savedGlobalRules = [...state.global_deny_models];
       state.revision = remoteRevision;
       state.dirty = false;
       try { state.status = await api(PATHS.status, { method: "GET" }); } catch (_) { /* policy confirmation is sufficient */ }
