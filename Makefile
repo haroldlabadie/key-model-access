@@ -1,5 +1,5 @@
 PLUGIN_NAME ?= key-model-access
-VERSION ?= 0.3.4
+VERSION ?= 0.3.5
 BUILD_DIR ?= dist
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)

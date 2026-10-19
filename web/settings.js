@@ -131,6 +131,8 @@
       "picker.allDenyHint": "* · 此 Key 将无法访问任何模型",
       "picker.allAllowHint": "* · 自动包含未来新增模型",
       "picker.presetHint": "当前匹配 {count} 个模型，并覆盖未来同前缀模型",
+      "picker.warmupPresetHint": "当前匹配 {count} 条内部预热路由，并覆盖未来同前缀路由",
+      "picker.internalRoutes": "内部路由",
       "picker.matchedBy": "由 {rule} 通配符匹配",
       "picker.searchPlaceholder": "搜索模型…",
       "picker.searchLabel": "搜索{title}模型",
@@ -272,6 +274,8 @@
       "picker.allDenyHint": "* · This key will not be able to access any model",
       "picker.allAllowHint": "* · Automatically includes future models",
       "picker.presetHint": ({ count }) => `Matches ${count} ${plural(count, "model", "models")} now, plus future models with this prefix`,
+      "picker.warmupPresetHint": ({ count }) => `Matches ${count} internal warmup ${plural(count, "route", "routes")} now, plus future routes with this prefix`,
+      "picker.internalRoutes": "Internal routes",
       "picker.matchedBy": "Matched by wildcard {rule}",
       "picker.searchPlaceholder": "Search models…",
       "picker.searchLabel": ({ title }) => `Search models to ${String(title).toLowerCase()}`,
@@ -1147,23 +1151,29 @@
           return `<span class="chip ${deny ? "deny" : ""}"><span>${escapeHTML(model)}</span>${wildcard ? `<small>${wildcardLabel}</small>` : outsideCatalog ? `<small>${escapeHTML(t("picker.outsideCatalog"))}</small>` : ""}<button class="chip-remove" type="button" data-action="remove-model" data-kind="${kind}" data-model="${escapeHTML(model)}" aria-label="${escapeHTML(t("picker.removeRule"))}">${icons.close}</button></span>`;
         }).join("")
       : `<span class="empty-chips">${escapeHTML(t(deny ? "picker.noDenied" : "picker.unrestricted"))}</span>`;
+    const warmupRule = "warmup-*/*";
     const wildcardRow = `<button class="model-option wildcard-option ${wildcardSelected ? "selected" : ""}" type="button" role="option" aria-selected="${wildcardSelected}" data-action="toggle-model" data-kind="${kind}" data-model="*" data-search="全部模型 all models wildcard *">
       <span class="model-checkbox" aria-hidden="true">${wildcardSelected ? icons.check : ""}</span>
       <span class="model-option-copy"><strong>${escapeHTML(t("picker.allModels"))}</strong><small>${escapeHTML(t(deny ? "picker.allDenyHint" : "picker.allAllowHint"))}</small></span>
       <span class="model-badge">${wildcardLabel}</span>
     </button>`;
     const commonWildcards = ["gpt-*", "claude-*", "gemini-*", "qwen-*", "deepseek-*", "grok-*", "kimi-*", "glm-*", "minimax-*"];
-    const presetRows = commonWildcards.filter((rule) => selected.has(rule) || state.models.some((model) => modelPatternMatches(rule, model.id))).map((rule) => {
+    const presetRow = (rule, group) => {
       const explicit = selected.has(rule);
       const derived = wildcardSelected && !explicit;
       const checked = explicit || derived;
-      const matchCount = state.models.filter((model) => modelPatternMatches(rule, model.id)).length;
-      return `<button class="model-option preset-option ${checked ? "selected" : ""} ${derived ? "derived" : ""}" type="button" role="option" aria-selected="${checked}" aria-disabled="${derived}" data-action="toggle-model" data-kind="${kind}" data-model="${rule}" data-locked="${derived}" data-search="${rule} 通配符 wildcard">
+      const matchCount = state.models.filter((model) => modelPatternMatches(rule, model.id) && (group === "internal" || !isInternalWarmupModel(model.id))).length;
+      const hintKey = group === "internal" ? "picker.warmupPresetHint" : "picker.presetHint";
+      const search = group === "internal" ? `${rule} warmup 预热 内部路由 internal routes` : `${rule} 通配符 wildcard`;
+      return `<button class="model-option preset-option ${checked ? "selected" : ""} ${derived ? "derived" : ""}" type="button" role="option" aria-selected="${checked}" aria-disabled="${derived}" data-action="toggle-model" data-kind="${kind}" data-model="${rule}" data-locked="${derived}" data-search="${search}">
         <span class="model-checkbox" aria-hidden="true">${checked ? icons.check : ""}</span>
-        <span class="model-option-copy"><strong>${rule}</strong><small>${escapeHTML(t("picker.presetHint", { count: matchCount }))}</small></span>
+        <span class="model-option-copy"><strong>${rule}</strong><small>${escapeHTML(t(hintKey, { count: matchCount }))}</small></span>
         <span class="model-badge">${wildcardLabel}</span>
       </button>`;
-    }).join("");
+    };
+    const familyPresetRows = commonWildcards.filter((rule) => selected.has(rule) || state.models.some((model) => modelPatternMatches(rule, model.id))).map((rule) => presetRow(rule, "family")).join("");
+    const warmupPresetRow = presetRow(warmupRule, "internal");
+    const internalRouteHeading = `<div class="preset-group-label">${escapeHTML(t("picker.internalRoutes"))}</div>`;
     const visibleModels = state.models.filter((model) => {
       if (state.showWarmupModels) return true;
       if (selected.has(model.id)) return true;
@@ -1192,7 +1202,7 @@
       </button>
       ${isOpen ? `<div class="model-panel ${state.pickerAnimate === kind ? "animate-in" : ""}">
         ${state.models.length ? `<div class="model-search"><span>${icons.search}</span><input type="search" data-model-search="${kind}" value="${escapeHTML(state.pickerQuery)}" autocomplete="off" placeholder="${escapeHTML(t("picker.searchPlaceholder"))}" aria-label="${escapeHTML(t("picker.searchLabel", { title }))}"></div>
-        <div class="model-list" role="listbox" aria-multiselectable="true">${wildcardRow}${presetRows}${rows}<p class="model-empty" hidden>${escapeHTML(t("picker.noMatch"))}</p></div>
+        <div class="model-list" role="listbox" aria-multiselectable="true">${wildcardRow}${familyPresetRows}${internalRouteHeading}${warmupPresetRow}${rows}<p class="model-empty" hidden>${escapeHTML(t("picker.noMatch"))}</p></div>
         <div class="model-panel-footer">
           <div class="footer-stats">
             <span>${escapeHTML(t("picker.footerMatched", { matched: effectiveCatalogCount, total: state.models.length }))}</span>

@@ -62,6 +62,8 @@ func TestSettingsPageEmbedsAssetsWithNonceCSP(t *testing.T) {
 		"<progress class=\"selection-meter\"",
 		"state.pendingDraft = serializablePolicy()",
 		"const commonWildcards",
+		"const warmupRule = \"warmup-*/*\"",
+		"picker.internalRoutes",
 		"cli-proxy-api:caller-scope:v1\\0",
 		"<strong>${escapeHTML(key.alias || keyLabel(index))}</strong>",
 		":root",

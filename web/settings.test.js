@@ -18,7 +18,7 @@ function load(respond = () => { throw new Error('Unexpected fetch'); }, globals 
     fetch: async (path, options) => ({ ok: true, json: async () => respond(path, options) })
   });
   vm.runInContext(source.slice(0, source.indexOf(marker)) +
-    'globalThis.helpers = { pluginsDirFromList, initializeDefaultPersistence, fetchCurrentKeys, api, normalizePolicyDocument, MESSAGES, t, getLocale: () => locale, readSavedManagementKey, clearSavedManagementKey, STANDALONE_AUTH_KEY, isInternalWarmupModel }; })();', context);
+    'globalThis.helpers = { pluginsDirFromList, initializeDefaultPersistence, fetchCurrentKeys, api, normalizePolicyDocument, MESSAGES, t, getLocale: () => locale, readSavedManagementKey, clearSavedManagementKey, STANDALONE_AUTH_KEY, isInternalWarmupModel, modelPatternMatches, modelPickerHTML: (selected, models, showWarmup = false) => { state.models = models; state.showWarmupModels = showWarmup; state.openPicker = \'deny_models\'; return modelPicker(\'deny_models\', \'Deny\', \'\', selected, true); } }; })();', context);
   return context.helpers;
 }
 
@@ -193,4 +193,17 @@ test('isInternalWarmupModel: detects warmup channel models correctly', () => {
   assert.equal(isInternalWarmupModel('gemini-3.8-flash-high'), false);
   assert.equal(isInternalWarmupModel('claude-sonnet-4-6'), false);
   assert.equal(isInternalWarmupModel(''), false);
+});
+
+test('warmup route preset: remains selectable without a warmup catalog and matches future routes', () => {
+  const { modelPickerHTML, modelPatternMatches } = load();
+  const catalog = [{ id: 'gpt-6-luna', displayName: 'GPT 6.0 Luna' }];
+  const empty = modelPickerHTML([], catalog);
+  assert.match(empty, /data-model="warmup-\*\/\*"/);
+  const selected = modelPickerHTML(['warmup-*/*'], catalog, true);
+  assert.match(selected, /aria-selected="true"[^>]*data-model="warmup-\*\/\*"/);
+  assert.equal(modelPatternMatches('warmup-*/*', 'warmup-codex-89abcdef0123/gpt-6-luna'), true);
+  assert.equal(modelPatternMatches('warmup-*/*', 'warmup-antigravity-012345abcdef/claude-opus-4-6-thinking'), true);
+  assert.equal(modelPatternMatches('warmup-*/*', 'gpt-6-luna'), false);
+  assert.equal(modelPatternMatches('gpt-*', 'warmup-codex-89abcdef0123/gpt-6-luna'), false);
 });

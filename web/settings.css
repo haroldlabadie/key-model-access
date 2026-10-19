@@ -514,6 +514,8 @@ input:focus-visible { outline: none; }
 .model-option-copy strong { font: 0.8125rem/1.4 var(--font-mono); font-weight: 450; letter-spacing: -0.01em; }
 .model-option-copy small { color: var(--text-3); font-size: 0.6875rem; line-height: 1.4; }
 .wildcard-option .model-option-copy strong { font-family: inherit; font-weight: 550; }
+.preset-group-label { margin: 0.5rem 0 0.25rem; padding: 0 0.5rem; color: var(--text-3); font-size: 0.6875rem; font-weight: 550; letter-spacing: 0.01em; }
+.preset-group-hint { margin: -0.125rem 0 0.375rem; padding: 0 0.5rem; color: var(--text-3); font-size: 0.6875rem; line-height: 1.4; }
 .model-badge { flex: 0 0 auto; padding: 0.0625rem 0.375rem; border-radius: 4px; color: var(--text-3); background: var(--surface-2); font-size: 0.6875rem; }
 .model-empty { padding: 1.5rem 0.75rem; color: var(--text-3); font-size: 0.8125rem; text-align: center; }
 .model-panel-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.375rem 0.375rem 0.375rem 0.875rem; border-top: 1px solid var(--border); color: var(--text-3); font-size: 0.75rem; font-variant-numeric: tabular-nums; }

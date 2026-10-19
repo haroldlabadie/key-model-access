@@ -610,3 +610,22 @@ func TestCompileDocumentPreservesAndTrimsAlias(t *testing.T) {
 		t.Fatalf("expected trimmed alias 'codex-alias', got %q", sanitized.Policies[0].Alias)
 	}
 }
+
+func TestWarmupRouteWildcardPreservesFullRouteIdentity(t *testing.T) {
+	policy := runtimePolicy{DenyModels: []string{"warmup-*/*"}}
+	for _, tc := range []struct {
+		model string
+		want  bool
+	}{
+		{"warmup-antigravity-012345abcdef/claude-opus-4-6-thinking", false},
+		{"warmup-codex-89abcdef0123/gpt-6-luna", false},
+		{"warmup-custom-account_1/gemini-3.8-flash-high", false},
+		{"gpt-6-luna", true},
+		{"vendor/model", true},
+		{"WARMUP-CODEX-89ABCDEF0123/GPT-6-LUNA", false},
+	} {
+		if got := policyAllows(policy, tc.model); got != tc.want {
+			t.Errorf("policyAllows(%q) = %v, want %v", tc.model, got, tc.want)
+		}
+	}
+}
